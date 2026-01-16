@@ -7,7 +7,7 @@ pip install -r requirements.txt
 python manage.py migrate
 
 # Create superuser from env variables
-python create_superuser.py
+python create_super_admin.py
 
 # Collect static files
 python manage.py collectstatic --noinput

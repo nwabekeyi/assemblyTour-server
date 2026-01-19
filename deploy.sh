@@ -1,6 +1,10 @@
 #!/bin/bash
+set -e
 
-echo "🔄 Adding changes..."
+echo "📦 Updating requirements.txt..."
+pip freeze > requirements.txt
+
+echo "📂 Staging files..."
 git add .
 
 echo "📝 Enter commit message:"
@@ -11,5 +15,5 @@ git commit -m "$commit_message"
 echo "🚀 Pushing to GitHub..."
 git push origin main
 
-echo "✅ Push complete!"
-echo "ℹ️ Render will now run migrations and build automatically."
+echo "✅ Deployment triggered!"
+echo "ℹ️ Render will now install requirements, migrate DB, and collect static files."

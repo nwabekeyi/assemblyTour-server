@@ -1,6 +1,5 @@
 from django.contrib.auth import get_user_model
 from django.utils.decorators import method_decorator
-from django_ratelimit.decorators import ratelimit
 from rest_framework import generics, status
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework.permissions import AllowAny
@@ -12,7 +11,6 @@ from core.utils.validators import validate_with_pydantic
 User = get_user_model()
 
 
-@method_decorator(ratelimit(key='ip', rate='10/m', block=True), name='dispatch')
 class AuthView(generics.GenericAPIView):
     serializer_class = AuthSerializer
     permission_classes = [AllowAny]

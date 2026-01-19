@@ -17,12 +17,11 @@ class CustomUserAdmin(UserAdmin):
         (None, {'fields': ('email', 'password')}),
         ('Personal Info', {'fields': (
             'first_name', 'last_name', 'phone', 'date_of_birth',
-            'gender', 'nationality', 'state_of_origin', 'passport_number',
-            'passport_expiry', 'address', 'emergency_contact_name', 'emergency_contact_phone'
+            'gender', 'nationality', 'state_of_origin', 'passport_number', 'passport_expiry',
+            'address', 'emergency_contact_name', 'emergency_contact_phone'
         )}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important Dates', {'fields': ('last_login', 'date_joined')}),
-        ('Registration Info', {'fields': ('registration_id',)}),
     )
 
     # Fields to show when adding a new user
@@ -39,7 +38,7 @@ class CustomUserAdmin(UserAdmin):
         'nationality', 'state_of_origin', 'passport_number', 'passport_expiry',
         'address', 'emergency_contact_name', 'emergency_contact_phone',
         'is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions',
-        'last_login', 'date_joined', 'registration_id'
+        'last_login', 'date_joined'
     )
 
     # Columns displayed in the user list

@@ -9,6 +9,6 @@ urlpatterns = [
     path(API_PREFIX, include('registrations.urls')),
     path(API_PREFIX, include('packages.urls')),
     path(API_PREFIX, include("core.urls")),
-    # path(f"{API_PREFIX}blog/", include('blog.urls')),
-    # path(f"{API_PREFIX}documents/", include('documents.urls')),
+    path(f"{API_PREFIX}blog/", include('blog.urls')),
+    path(f"{API_PREFIX}documents/", include('documents.urls')),
 ]

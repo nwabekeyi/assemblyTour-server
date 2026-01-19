@@ -1,6 +1,13 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
-import uuid
+from django.conf import settings
+import cuid
+
+# ---------------------------
+# CUID generator
+# ---------------------------
+def generate_cuid():
+    return cuid.cuid()
 
 
 # ---------------------------
@@ -35,17 +42,24 @@ class UserManager(BaseUserManager):
 
 
 # ---------------------------
-# Custom User Model
+# Custom User Model (CUID)
 # ---------------------------
 class User(AbstractUser):
-    username = None
+    # 🔑 CUID primary key
+    id = models.CharField(
+        max_length=25,
+        primary_key=True,
+        default=generate_cuid,
+        editable=False
+    )
+
+    username = None  # remove username
 
     # Required fields
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=20, unique=True)
-    registration_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
-    # Optional personal info for Hajj registration
+    # Optional personal info
     first_name = models.CharField(max_length=30, blank=True, null=True)
     last_name = models.CharField(max_length=30, blank=True, null=True)
     date_of_birth = models.DateField(null=True, blank=True)
@@ -63,7 +77,7 @@ class User(AbstractUser):
     emergency_contact_name = models.CharField(max_length=100, null=True, blank=True)
     emergency_contact_phone = models.CharField(max_length=20, null=True, blank=True)
 
-    # Django fields
+    # Django flags
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 
@@ -79,7 +93,7 @@ class User(AbstractUser):
         blank=True,
     )
 
-    # Use email as login
+    # Auth config
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['phone']
 

@@ -15,29 +15,39 @@ def generate_cuid():
 class UserManager(BaseUserManager):
     use_in_migrations = True
 
-    def create_user(self, email, phone, password=None, username=None, **extra_fields):
-        if not email:
-            raise ValueError("Email is required")
+    def create_user(self, phone, password=None, email=None, username=None, **extra_fields):
         if not phone:
             raise ValueError("Phone is required")
 
-        email = self.normalize_email(email)
-        user = self.model(email=email, phone=phone, username=username, **extra_fields)
+        if email:
+            email = self.normalize_email(email)
+
+        user = self.model(
+            phone=phone,
+            email=email,
+            username=username,
+            **extra_fields
+        )
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email, phone, password=None, username=None, **extra_fields):
+    def create_superuser(self, phone, password=None, email=None, username=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('is_active', True)
 
-        if extra_fields.get('is_staff') is not True:
-            raise ValueError("Superuser must have is_staff=True")
-        if extra_fields.get('is_superuser') is not True:
-            raise ValueError("Superuser must have is_superuser=True")
+        if not email:
+            raise ValueError("Superuser must have an email")
 
-        return self.create_user(email, phone, password, username=username, **extra_fields)
+        return self.create_user(
+            phone=phone,
+            email=email,
+            password=password,
+            username=username,
+            **extra_fields
+        )
+
 
 
 # ---------------------------
@@ -56,11 +66,15 @@ class User(AbstractUser):
     username = models.CharField(max_length=150, blank=True, null=True, unique=True)
 
     # Required fields
-    email = models.EmailField(unique=True)
     phone = models.CharField(max_length=20, unique=True)
 
     # Optional personal info
     first_name = models.CharField(max_length=30, blank=True, null=True)
+    email = models.EmailField(
+        unique=True,
+        null=True,
+        blank=True
+    )
     last_name = models.CharField(max_length=30, blank=True, null=True)
     date_of_birth = models.DateField(null=True, blank=True)
     gender = models.CharField(

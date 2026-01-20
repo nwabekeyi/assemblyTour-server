@@ -1,9 +1,13 @@
+import os
+import random
+import string
+import requests
 from django.contrib.auth import get_user_model
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
 from rest_framework import generics, status
-from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework.permissions import AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import AuthSerializer
 from .validators import AuthData
 from core.utils.api_response import api_response
@@ -18,7 +22,7 @@ class AuthView(generics.GenericAPIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        # 1️⃣ Validate with Pydantic
+        # 1️⃣ Validate input with Pydantic
         validated_data = validate_with_pydantic(AuthData, request.data)
 
         # 2️⃣ Validate with DRF serializer
@@ -38,21 +42,60 @@ class AuthView(generics.GenericAPIView):
     # Registration logic
     # -----------------------
     def _register(self, data):
-        import random
-        import string
+        # 1️⃣ Get Turnstile secret from environment
+        turnstile_secret = os.getenv("CLOUDFLARE_SECRET_KEY")
+        token = data.get("turnstileToken")
 
-        temp_password = ''.join(
-            random.choices(string.ascii_letters + string.digits, k=10)
-        )
+        if not token:
+            return api_response(
+                success=False,
+                message="Turnstile token is missing",
+                data=None,
+                errors={"detail": "No token provided"},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
-        user = User(
-            username=data['username'],
-            email=data['email'],
+        # 2️⃣ Verify Turnstile token
+        try:
+            resp = requests.post(
+                "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+                data={
+                    "secret": turnstile_secret,
+                    "response": token
+                },
+                timeout=5
+            )
+            result = resp.json()
+        except requests.RequestException as e:
+            return api_response(
+                success=False,
+                message="Turnstile verification failed",
+                data=None,
+                errors={"detail": str(e)},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not result.get("success"):
+            return api_response(
+                success=False,
+                message="Turnstile verification failed",
+                data=None,
+                errors={"detail": result.get("error-codes", "Unknown error")},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 3️⃣ Generate username and temporary password
+        username = "user" + ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+        temp_password = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+
+        # 4️⃣ Create user with phone only
+        user = User.objects.create_user(
             phone=data['phone'],
+            username=username,
+            password=temp_password
         )
-        user.set_password(temp_password)
-        user.save()
 
+        # 5️⃣ Generate JWT tokens
         refresh = RefreshToken.for_user(user)
 
         return api_response(
@@ -62,9 +105,7 @@ class AuthView(generics.GenericAPIView):
                 "user": {
                     "id": user.id,
                     "username": user.username,
-                    "email": user.email,
                     "phone": user.phone,
-                    "registration_id": user.registration_id,
                 },
                 "temp_password": temp_password,
                 "tokens": {
@@ -77,25 +118,30 @@ class AuthView(generics.GenericAPIView):
         )
 
     # -----------------------
-    # Login logic using email + password
+    # Login logic using username + password
     # -----------------------
     def _login(self, data):
-        # Find user by email
-        user = User.objects.get(email=data['email'])
+        try:
+            user = User.objects.get(username=data['username'])
+        except User.DoesNotExist:
+            return api_response(
+                success=False,
+                message="Invalid login credentials",
+                data=None,
+                errors={"detail": "Invalid username or password"},
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
 
-        # Check password manually
         if not user.check_password(data['password']):
             return api_response(
                 success=False,
                 message="Invalid login credentials",
                 data=None,
-                errors={"detail": "Invalid email or password"},
+                errors={"detail": "Invalid username or password"},
                 status_code=status.HTTP_401_UNAUTHORIZED,
             )
 
-        # Everything is fine, create JWT tokens
         refresh = RefreshToken.for_user(user)
-
         return api_response(
             success=True,
             message="Login successful",
@@ -103,9 +149,7 @@ class AuthView(generics.GenericAPIView):
                 "user": {
                     "id": user.id,
                     "username": user.username,
-                    "email": user.email,
                     "phone": user.phone,
-                    "registration_id": user.registration_id,
                 },
                 "tokens": {
                     "refresh": str(refresh),
@@ -116,21 +160,25 @@ class AuthView(generics.GenericAPIView):
             status_code=status.HTTP_200_OK,
         )
 
-
     # -----------------------
     # Refresh token logic
     # -----------------------
     def _refresh_token(self, data):
-        refresh_token = data['refresh']
-        refresh = RefreshToken(refresh_token)
+        try:
+            refresh = RefreshToken(data['refresh'])
+        except Exception:
+            return api_response(
+                success=False,
+                message="Invalid refresh token",
+                data=None,
+                errors={"detail": "Invalid refresh token"},
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
 
         return api_response(
             success=True,
             message="Access token refreshed successfully",
-            data={
-                "access": str(refresh.access_token),
-            },
+            data={"access": str(refresh.access_token)},
             errors=None,
             status_code=status.HTTP_200_OK,
         )
-

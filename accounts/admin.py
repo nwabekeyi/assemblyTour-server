@@ -12,11 +12,11 @@ admin.site.index_title = "Welcome to Assembly Tours Administration"
 class CustomUserAdmin(UserAdmin):
     model = User
 
-    # Only allow password to be editable, everything else read-only
+    # Fieldsets for viewing/editing a user
     fieldsets = (
-        (None, {'fields': ('email', 'password')}),
+        (None, {'fields': ('email', 'username', 'password')}),  # username added here
         ('Personal Info', {'fields': (
-            'first_name', 'last_name', 'phone', 'date_of_birth',
+            'first_name', 'last_name', 'profile_picture', 'phone', 'date_of_birth',
             'gender', 'nationality', 'state_of_origin', 'passport_number', 'passport_expiry',
             'address', 'emergency_contact_name', 'emergency_contact_phone'
         )}),
@@ -28,13 +28,13 @@ class CustomUserAdmin(UserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'phone', 'password1', 'password2', 'is_active', 'is_staff', 'is_superuser')
+            'fields': ('email', 'username', 'phone', 'password1', 'password2', 'is_active', 'is_staff', 'is_superuser')
         }),
     )
 
-    # Make all fields read-only except password
+    # Make all fields read-only except password and username
     readonly_fields = (
-        'email', 'first_name', 'last_name', 'phone', 'date_of_birth', 'gender',
+        'email', 'first_name', 'last_name', 'profile_picture', 'phone', 'date_of_birth', 'gender',
         'nationality', 'state_of_origin', 'passport_number', 'passport_expiry',
         'address', 'emergency_contact_name', 'emergency_contact_phone',
         'is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions',
@@ -42,6 +42,6 @@ class CustomUserAdmin(UserAdmin):
     )
 
     # Columns displayed in the user list
-    list_display = ("email", "phone", "first_name", "last_name", "is_staff", "is_active")
-    search_fields = ("email", "phone", "first_name", "last_name")
+    list_display = ("email", "username", "phone", "first_name", "last_name", "profile_picture", "is_staff", "is_active")
+    search_fields = ("email", "username", "phone", "first_name", "last_name")
     ordering = ("email",)

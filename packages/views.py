@@ -1,26 +1,41 @@
-from rest_framework import generics, permissions, status
-from rest_framework.response import Response
+from rest_framework import generics, status
+from rest_framework.permissions import AllowAny
+from core.utils.api_response import api_response
+from core.utils.pagination import StandardResultsSetPagination
 from .models import Package
 from .serializers import PackageSerializer
-from core.utils.api_response import api_response
-from rest_framework.permissions import AllowAny
-
 
 
 class PackageListView(generics.ListAPIView):
     queryset = Package.objects.all()
     serializer_class = PackageSerializer
     permission_classes = [AllowAny]
+    pagination_class = StandardResultsSetPagination
 
-    def get(self, request, *args, **kwargs):
-        packages = self.get_queryset()
-        serializer = self.get_serializer(packages, many=True)
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+
+        if page is not None:
+            serializer = self.get_serializer(
+                page,
+                many=True,
+                context={"request": request}
+            )
+            paginated_data = self.get_paginated_response(serializer.data).data
+            return api_response(
+                data=paginated_data,
+                message="Packages retrieved successfully",
+            )
+
+        serializer = self.get_serializer(
+            queryset,
+            many=True,
+            context={"request": request}
+        )
         return api_response(
-            success=True,
-            message="Packages retrieved successfully",
             data=serializer.data,
-            errors=None,
-            status_code=status.HTTP_200_OK
+            message="Packages retrieved successfully",
         )
 
 
@@ -28,15 +43,16 @@ class PackageDetailView(generics.RetrieveAPIView):
     queryset = Package.objects.all()
     serializer_class = PackageSerializer
     lookup_field = "id"
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [AllowAny]
 
-    def get(self, request, *args, **kwargs):
+    def retrieve(self, request, *args, **kwargs):
         package = self.get_object()
-        serializer = self.get_serializer(package)
-        return api_response(
-            success=True,
-            message="Package details retrieved successfully",
-            data=serializer.data,
-            errors=None,
-            status_code=status.HTTP_200_OK
+        serializer = self.get_serializer(
+            package,
+            context={"request": request}
         )
+        return api_response(
+            data=serializer.data,
+            message="Package details retrieved successfully",
+        )
+

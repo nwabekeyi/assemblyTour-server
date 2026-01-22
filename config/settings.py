@@ -45,12 +45,15 @@ INSTALLED_APPS = [
     'packages',
     'blog',
     'notifications',
-    'core'
+    'core',
+    "homecontent.apps.HomecontentConfig",
+    "sacredsites",
+    "faqs"
 ]
 
 MIDDLEWARE = [
-    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -60,7 +63,6 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True
 
 REST_FRAMEWORK = {
     # JWT authentication
@@ -83,6 +85,15 @@ REST_FRAMEWORK = {
     # Centralized exception handler
     "EXCEPTION_HANDLER": "core.utils.exceptions.custom_exception_handler",
 }
+
+# Allow only your frontend origin(s)
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # your Vite frontend
+    "http://127.0.0.1:5173",
+]
+
+# This is crucial for cookies / auth headers
+CORS_ALLOW_CREDENTIALS = True
 
 
 
@@ -161,7 +172,14 @@ MEDIA_ROOT = BASE_DIR / 'media'
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+STORAGES = {
+    "default": {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # Optional: compress static files for better performance
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"

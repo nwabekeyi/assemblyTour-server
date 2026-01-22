@@ -38,11 +38,11 @@ class RegistrationStep(models.Model):
     )
 
     action_type = models.CharField(
-    max_length=20,
-    choices=StepAction.choices,
-    default=StepAction.AUTO,
-    help_text="Type of action required in this step"
-)
+        max_length=20,
+        choices=StepAction.choices,
+        default=StepAction.AUTO,
+        help_text="Type of action required in this step"
+    )
 
     data_scope = models.CharField(
         max_length=20,
@@ -50,7 +50,6 @@ class RegistrationStep(models.Model):
         default=StepDataScope.REGISTRATION,
         help_text="Which part of the system this step works on"
     )
-
 
     order = models.PositiveIntegerField(
         unique=True,
@@ -64,6 +63,12 @@ class RegistrationStep(models.Model):
 
     def __str__(self):
         return f"{self.order}. {self.title}"
+
+
+class RegistrationStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    COMPLETED = "completed", "Completed"
+    FAILED = "failed", "Failed"
 
 
 class HajjRegistration(models.Model):
@@ -85,8 +90,36 @@ class HajjRegistration(models.Model):
         related_name="completed_by_users"
     )
 
+    status = models.CharField(
+        max_length=20,
+        choices=RegistrationStatus.choices,
+        default=RegistrationStatus.PENDING,
+        help_text="Overall registration status"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ["created_at"]
+
     def __str__(self):
-        return f"{self.user.email} – Step {self.current_step.order}"
+        return f"{self.user.email} – {self.status.title()}"
+
+    @property
+    def is_completed(self) -> bool:
+        """
+        Returns True if all active steps are completed.
+        """
+        total_steps = RegistrationStep.objects.filter(is_active=True).count()
+        return self.completed_steps.count() >= total_steps
+
+    def update_status(self):
+        """
+        Update registration status based on completed steps.
+        """
+        if self.is_completed:
+            self.status = RegistrationStatus.COMPLETED
+        elif self.status != RegistrationStatus.FAILED:
+            self.status = RegistrationStatus.PENDING
+        self.save()

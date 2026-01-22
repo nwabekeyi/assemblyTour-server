@@ -1,52 +1,67 @@
 from rest_framework import generics, status
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
-
-from .models import BlogPost, BlogComment, BlogLike
-from .serializers import (
-    BlogPostListSerializer,
-    BlogPostDetailSerializer,
-    BlogCommentSerializer,
-)
-from .permissions import IsAdminUserOnly
+from core.utils.api_response import api_response
+from core.utils.pagination import StandardResultsSetPagination
+from .models import BlogPost, BlogLike
+from .serializers import BlogPostListSerializer, BlogPostDetailSerializer, BlogCommentSerializer
 
 
-# LIST BLOG POSTS (PUBLIC)
+# --------------------------
+# LIST BLOG POSTS (PAGINATED)
+# --------------------------
 class BlogPostListView(generics.ListAPIView):
-    queryset = BlogPost.objects.filter(is_published=True)
+    queryset = BlogPost.objects.filter(is_published=True).order_by("-published_at")
     serializer_class = BlogPostListSerializer
     permission_classes = [AllowAny]
+    pagination_class = StandardResultsSetPagination
 
+    def list(self, request, *args, **kwargs):
+        """
+        Return paginated response wrapped with api_response
+        """
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            paginated_data = self.get_paginated_response(serializer.data).data
+            return api_response(
+                data=paginated_data,
+                message="Blog posts fetched successfully"
+            )
 
-# CREATE BLOG POST (ADMIN ONLY)
-class BlogPostCreateView(generics.CreateAPIView):
-    serializer_class = BlogPostDetailSerializer
-    permission_classes = [IsAuthenticated, IsAdminUserOnly]
-
-    def perform_create(self, serializer):
-        serializer.save(
-            author=self.request.user,
-            published_at=timezone.now()
+        # fallback if pagination not applied
+        serializer = self.get_serializer(queryset, many=True)
+        return api_response(
+            data=serializer.data,
+            message="Blog posts fetched successfully"
         )
 
 
+# --------------------------
 # BLOG DETAIL
+# --------------------------
 class BlogPostDetailView(generics.RetrieveAPIView):
     queryset = BlogPost.objects.filter(is_published=True)
     serializer_class = BlogPostDetailSerializer
-    permission_classes = [AllowAny]
     lookup_field = "slug"
+    permission_classes = [AllowAny]
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         instance.views_count += 1
         instance.save(update_fields=["views_count"])
-        return super().retrieve(request, *args, **kwargs)
+
+        serializer = self.get_serializer(instance)
+        return api_response(
+            data=serializer.data,
+            message="Blog post fetched successfully"
+        )
 
 
-# COMMENTS
+# --------------------------
+# COMMENT CREATE
+# --------------------------
 class BlogCommentCreateView(generics.CreateAPIView):
     serializer_class = BlogCommentSerializer
     permission_classes = [IsAuthenticated]
@@ -55,23 +70,35 @@ class BlogCommentCreateView(generics.CreateAPIView):
         post = get_object_or_404(BlogPost, id=self.kwargs["post_id"])
         serializer.save(post=post)
 
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        return api_response(
+            data=response.data,
+            message="Comment added successfully",
+            status=status.HTTP_201_CREATED
+        )
 
-# LIKE / UNLIKE
+
+# --------------------------
+# LIKE / UNLIKE TOGGLE
+# --------------------------
 class BlogLikeToggleView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, post_id):
         post = get_object_or_404(BlogPost, id=post_id)
-        like, created = BlogLike.objects.get_or_create(
-            post=post,
-            user=request.user
-        )
+        like, created = BlogLike.objects.get_or_create(post=post, user=request.user)
 
         if not created:
             like.delete()
-            post.likes_count -= 1
+            post.likes_count = max(post.likes_count - 1, 0)
+            action = "unliked"
         else:
             post.likes_count += 1
+            action = "liked"
 
         post.save(update_fields=["likes_count"])
-        return Response({"likes_count": post.likes_count})
+        return api_response(
+            data={"likes_count": post.likes_count},
+            message=f"Blog post successfully {action}"
+        )

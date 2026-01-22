@@ -90,6 +90,7 @@ REST_FRAMEWORK = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # your Vite frontend
     "http://127.0.0.1:5173",
+    "https://assembly-tour2.vercel.app"
 ]
 
 # This is crucial for cookies / auth headers

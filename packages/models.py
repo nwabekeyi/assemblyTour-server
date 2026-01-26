@@ -3,7 +3,6 @@ from django.core.files.base import ContentFile
 from io import BytesIO
 from PIL import Image
 
-
 # -------------------------------
 # Image resize helper (Cloudinary-safe)
 # -------------------------------
@@ -26,6 +25,11 @@ def resize_image(file, max_width: int, max_height: int):
 # PACKAGE MODEL
 # ===============================
 class Package(models.Model):
+    CATEGORY_CHOICES = (
+        ("umrah", "Umrah"),
+        ("hajj", "Hajj"),
+    )
+
     name = models.CharField(max_length=255)
     location = models.CharField(max_length=255)
 
@@ -43,6 +47,11 @@ class Package(models.Model):
     )
 
     description = models.TextField()
+    type = models.CharField(
+        max_length=150,
+        blank=True,
+        help_text="Short description of the package"
+    )
     spiritual_highlights = models.TextField(
         help_text="Comma-separated spiritual highlights"
     )
@@ -52,6 +61,13 @@ class Package(models.Model):
 
     group_size_min = models.PositiveIntegerField(default=20)
     group_size_max = models.PositiveIntegerField(default=40)
+
+    category = models.CharField(
+        max_length=10,
+        choices=CATEGORY_CHOICES,
+        default="umrah",
+        help_text="Category of the package (Umrah or Hajj)"
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -71,4 +87,4 @@ class Package(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return self.name
+        return f"{self.name} ({self.get_category_display()})"

@@ -12,6 +12,8 @@ class PackageSerializer(serializers.ModelSerializer):
             "name",
             "location",
             "cover_image",
+            "category",
+            "type",
             "cover_image_url",
             "price_current",
             "price_original",
@@ -35,3 +37,9 @@ class PackageSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.cover_image.url)
             return obj.cover_image.url
         return None
+
+
+class PackageNavbarSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Package
+        fields = ["id", "name", "type"] 

@@ -7,6 +7,7 @@ class PackageAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "location",
+        "category",
         "price_current",
         "duration_days",
         "duration_nights",

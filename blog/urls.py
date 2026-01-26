@@ -4,6 +4,7 @@ from .views import (
     BlogPostDetailView,
     BlogCommentCreateView,
     BlogLikeToggleView,
+    BlogCommentListBySlugView
 )
 
 urlpatterns = [
@@ -11,4 +12,5 @@ urlpatterns = [
     path("blogs/<slug:slug>/", BlogPostDetailView.as_view(), name="blog-detail"),
     path("blogs/<int:post_id>/comment/", BlogCommentCreateView.as_view(), name="blog-comment"),
     path("blogs/<int:post_id>/like/", BlogLikeToggleView.as_view(), name="blog-like"),
+    path("blogs/<slug:slug>/comments/", BlogCommentListBySlugView.as_view(), name="blog-comment-slug"),
 ]

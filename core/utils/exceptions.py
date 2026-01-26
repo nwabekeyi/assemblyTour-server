@@ -1,26 +1,36 @@
-from rest_framework import permissions
-from rest_framework.views import APIView
-from core.utils.api_response import api_response
-from .models import HeroSlide, ExperienceSection
-from .serializers import HeroSlideSerializer, ExperienceSectionSerializer
 
-class HomeContentView(APIView):
+from rest_framework.views import exception_handler
+from .api_response import api_response
+
+def custom_exception_handler(exc, context):
     """
-    Home page content API (public for users).
-    Only GET is exposed.
+    Wrap all exceptions into a consistent API response
     """
-    permission_classes = [permissions.AllowAny]
+    # Call default DRF handler first
+    response = exception_handler(exc, context)
 
-    def get(self, request):
-        # Only active content
-        hero_slides = HeroSlide.objects.filter(is_active=True)
-        experience_sections = ExperienceSection.objects.filter(is_active=True)
+    if response is not None:
+        # Extract errors from DRF
+        errors = response.data
+        message = "An error occurred"
 
-        hero_serializer = HeroSlideSerializer(hero_slides, many=True)
-        exp_serializer = ExperienceSectionSerializer(experience_sections, many=True)
+        # Customize message for common cases
+        if isinstance(errors, dict):
+            message = next(iter(errors))  # first key as message
 
-        data = {
-            "hero_slides": hero_serializer.data,
-            "experience_sections": exp_serializer.data
-        }
-        return api_response(data=data, message="Home content retrieved successfully.")
+        return api_response(
+            success=False,
+            message=message,
+            data=None,
+            errors=errors,
+            status_code=response.status_code
+        )
+
+    # If DRF couldn't handle it, fallback to generic 500
+    return api_response(
+        success=False,
+        message="Internal server error",
+        data=None,
+        errors=str(exc),
+        status_code=500
+    )

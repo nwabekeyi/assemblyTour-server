@@ -1,5 +1,12 @@
 from rest_framework import serializers
+from django.contrib.auth import get_user_model
 
+User = get_user_model()
+
+
+# ───────────────────────────────
+# Authentication Serializer
+# ───────────────────────────────
 class AuthSerializer(serializers.Serializer):
     action = serializers.ChoiceField(
         choices=['register', 'login', 'refresh'],
@@ -17,7 +24,7 @@ class AuthSerializer(serializers.Serializer):
         action = attrs.get('action')
 
         if action == 'register':
-            required_fields = ['phone', 'turnstileToken']  # ✅ require token for registration
+            required_fields = ['phone', 'turnstileToken']  # require token for registration
         elif action == 'login':
             required_fields = ['username', 'password']
         elif action == 'refresh':
@@ -33,3 +40,31 @@ class AuthSerializer(serializers.Serializer):
             })
 
         return attrs
+
+
+# ───────────────────────────────
+# User Profile Serializer
+# ───────────────────────────────
+class UserProfileSerializer(serializers.ModelSerializer):
+    profile_picture = serializers.URLField(required=False, allow_null=True)
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "email",
+            "phone",
+            "first_name",
+            "last_name",
+            "date_of_birth",
+            "gender",
+            "profile_picture",
+            "nationality",
+            "state_of_origin",
+            "passport_number",
+            "passport_expiry",
+            "address",
+            "emergency_contact_name",
+            "emergency_contact_phone",
+        ]

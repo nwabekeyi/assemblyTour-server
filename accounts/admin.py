@@ -14,7 +14,7 @@ class CustomUserAdmin(UserAdmin):
 
     # Fieldsets for viewing/editing a user
     fieldsets = (
-        (None, {'fields': ('email', 'username', 'password')}),  # username added here
+        (None, {'fields': ('email', 'username', 'password')}),
         ('Personal Info', {'fields': (
             'first_name', 'last_name', 'profile_picture', 'phone', 'date_of_birth',
             'gender', 'nationality', 'state_of_origin', 'passport_number', 'passport_expiry',

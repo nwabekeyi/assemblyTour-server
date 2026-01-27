@@ -6,9 +6,9 @@ from django.contrib.auth import get_user_model
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
 from rest_framework import generics, status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import AuthSerializer
+from .serializers import AuthSerializer, UserProfileSerializer
 from .validators import AuthData
 from core.utils.api_response import api_response
 from core.utils.validators import validate_with_pydantic
@@ -181,4 +181,19 @@ class AuthView(generics.GenericAPIView):
             data={"access": str(refresh.access_token)},
             errors=None,
             status_code=status.HTTP_200_OK,
+        )
+
+class UserProfileView(generics.RetrieveAPIView):
+    serializer_class = UserProfileSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        # Return the currently authenticated user
+        return self.request.user
+
+    def retrieve(self, request, *args, **kwargs):
+        serializer = self.get_serializer(self.get_object())
+        return api_response(
+            data=serializer.data,
+            message="User profile fetched successfully"
         )

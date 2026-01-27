@@ -1,10 +1,13 @@
 #!/bin/bash
 
-# Run migrations
-python manage.py migrate
+# Install dependencies
+pip install -r requirements.txt
+
 
 python manage.py clean_sqlite
 
+# Run migrations
+python manage.py migrate
 
 # Create superuser from env variables
 python create_super_admin.py

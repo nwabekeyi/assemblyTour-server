@@ -32,7 +32,7 @@ class CustomUserAdmin(UserAdmin):
         }),
     )
 
-    # Make all fields read-only except password and username
+    # Make fields read-only (except ones you want editable)
     readonly_fields = (
         'email', 'first_name', 'last_name', 'profile_picture', 'phone', 'date_of_birth', 'gender',
         'nationality', 'state_of_origin', 'passport_number', 'passport_expiry',
@@ -42,6 +42,27 @@ class CustomUserAdmin(UserAdmin):
     )
 
     # Columns displayed in the user list
-    list_display = ("email", "username", "phone", "first_name", "last_name", "profile_picture", "is_staff", "is_active")
+    list_display = (
+        "email", "get_username_safe", "phone", "first_name", "last_name",
+        "get_profile_picture_safe", "is_staff", "is_active"
+    )
+
+    # Add search fields
     search_fields = ("email", "username", "phone", "first_name", "last_name")
     ordering = ("email",)
+
+    # -------------------------------
+    # Helper methods to handle nulls
+    # -------------------------------
+
+    def get_username_safe(self, obj):
+        """Return username or placeholder if null."""
+        return obj.username or "(no username)"
+    get_username_safe.short_description = "Username"
+
+    def get_profile_picture_safe(self, obj):
+        """Return profile picture URL or placeholder if null."""
+        if obj.profile_picture:
+            return obj.profile_picture
+        return "(no profile picture)"
+    get_profile_picture_safe.short_description = "Profile Picture"

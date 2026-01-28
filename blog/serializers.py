@@ -94,54 +94,82 @@ class BlogPostDetailSerializer(serializers.ModelSerializer):
 # --------------------------
 class BlogCommentSerializer(serializers.ModelSerializer):
     user_name = serializers.SerializerMethodField()
-    user_img_url = serializers.SerializerMethodField()  # optional profile picture
+    user_img_url = serializers.SerializerMethodField()
 
     class Meta:
         model = BlogComment
         fields = [
             "id",
+            "post",                     # optional — can be read_only
             "content",
             "user_name",
             "user_img_url",
             "created_at",
-            "parent_id"
+            "parent",                   # if using threaded comments
+        ]
+        read_only_fields = [
+            "id", "created_at", "user_name", "user_img_url", "post"
         ]
 
     def get_user_name(self, obj):
-        return obj.user.get_full_name() or obj.user.username
+        if not obj.user:
+            return "Deleted User"
+    # Use username as fallback, optionally phone
+        return obj.user.username or obj.user.phone or "Anonymous"
+
 
     def get_user_img_url(self, obj):
         request = self.context.get("request")
-        if getattr(obj.user, "pic", None) and request:  # optional field
-            return request.build_absolute_uri(obj.user.pic.url)
-        return None
+        if obj.user and obj.user.profile_picture:
+            url = obj.user.profile_picture
+            return request.build_absolute_uri(url) if request else url
+
+    # Nice fallback using ui-avatars.com (no extra storage needed)
+        name = obj.user.get_full_name() or obj.user.username or "User"
+        return f"https://ui-avatars.com/api/?name={name.replace(' ', '+')}&background=random"
 
     def create(self, validated_data):
+        # user is always set from request
         validated_data["user"] = self.context["request"].user
+        # post is usually set in the view
         return super().create(validated_data)
 
 
+# ────────────────────────────────────────────────
+# REPLY SERIALIZER
+# ────────────────────────────────────────────────
 class BlogReplySerializer(serializers.ModelSerializer):
     user_name = serializers.SerializerMethodField()
     user_img_url = serializers.SerializerMethodField()
-    comment_id = serializers.IntegerField(source="comment.id", read_only=True)
 
     class Meta:
         model = BlogReply
         fields = [
             "id",
+            "comment",                  # read_only in most cases
             "content",
             "user_name",
             "user_img_url",
             "created_at",
-            "comment_id",
+        ]
+        read_only_fields = [
+            "id", "created_at", "user_name", "user_img_url", "comment"
         ]
 
     def get_user_name(self, obj):
-        return obj.user.get_full_name() or obj.user.username
+        if not obj.user:
+            return "Deleted User"
+    # Use username as fallback, optionally phone
+        return obj.user.username or obj.user.phone or "Anonymous"
 
     def get_user_img_url(self, obj):
         request = self.context.get("request")
-        if getattr(obj.user, "pic", None) and request:
-            return request.build_absolute_uri(obj.user.pic.url)
-        return None
+        if obj.user and obj.user.profile_picture:
+            url = obj.user.profile_picture
+            return request.build_absolute_uri(url) if request else url
+
+    # Nice fallback using ui-avatars.com (no extra storage needed)
+        name = obj.user.get_full_name() or obj.user.username or "User"
+        return f"https://ui-avatars.com/api/?name={name.replace(' ', '+')}&background=random"
+
+

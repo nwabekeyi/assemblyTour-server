@@ -20,9 +20,9 @@ def resize_image(file, max_width: int, max_height: int):
     return ContentFile(buffer.getvalue(), name=file.name)
 
 
-# -------------------------------
+# ────────────────────────────────────────────────
 # BLOG POST
-# -------------------------------
+# ────────────────────────────────────────────────
 class BlogPost(models.Model):
     id = models.CharField(
         primary_key=True,
@@ -38,7 +38,6 @@ class BlogPost(models.Model):
 
     cover_image = models.ImageField(upload_to="blog/covers/")
 
-    # ✅ PUBLIC AUTHOR (DISPLAY)
     author_name = models.CharField(max_length=100)
     author_image = models.ImageField(
         upload_to="blog/authors/",
@@ -46,7 +45,6 @@ class BlogPost(models.Model):
         blank=True
     )
 
-    # ✅ INTERNAL CREATOR (AUTH USER)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -61,9 +59,6 @@ class BlogPost(models.Model):
     views_count = models.PositiveIntegerField(default=0)
     likes_count = models.PositiveIntegerField(default=0)
 
-    # -------------------------------
-    # Admin-defined read time
-    # -------------------------------
     read_time = models.PositiveIntegerField(
         default=5,
         help_text="Minimum estimated read time for this blog in minutes"
@@ -73,7 +68,6 @@ class BlogPost(models.Model):
         if not self.slug:
             self.slug = slugify(self.title)
 
-        # Resize cover image only on first save
         if self.cover_image and not self.pk:
             self.cover_image = resize_image(
                 self.cover_image,
@@ -87,9 +81,9 @@ class BlogPost(models.Model):
         return self.title
 
 
-# -------------------------------
+# ────────────────────────────────────────────────
 # BLOG COMMENT
-# -------------------------------
+# ────────────────────────────────────────────────
 class BlogComment(models.Model):
     post = models.ForeignKey(
         BlogPost,
@@ -98,62 +92,59 @@ class BlogComment(models.Model):
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE
+        on_delete=models.CASCADE,
+        related_name="blog_comments"
     )
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
-    # Optional parent for threaded comments
+    # Optional: for nested/threaded comments in the future
     parent = models.ForeignKey(
         "self",
         null=True,
         blank=True,
-        on_delete=models.CASCADE,
-        related_name="child_comments"  # <-- must change to avoid clash
+        on_delete=models.SET_NULL,
+        related_name="child_comments"          # ← changed: no clash
     )
 
-    user_image_url = models.URLField(blank=True, null=True)
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Blog Comment"
+        verbose_name_plural = "Blog Comments"
 
-    def save(self, *args, **kwargs):
-        if not self.user_image_url and self.user:
-            if hasattr(self.user, "profile_image_url"):
-                self.user_image_url = self.user.profile_image_url
-            elif hasattr(self.user, "image"):
-                self.user_image_url = self.user.image.url
-        super().save(*args, **kwargs)
+    def __str__(self):
+        return f"Comment by {self.user} on {self.post}"
 
 
-# -------------------------------
-# BLOG REPLY
-# -------------------------------
+# ────────────────────────────────────────────────
+# BLOG REPLY (separate flat model)
+# ────────────────────────────────────────────────
 class BlogReply(models.Model):
     comment = models.ForeignKey(
         BlogComment,
         on_delete=models.CASCADE,
-        related_name="replies"  # <-- separate name from BlogComment.parent
+        related_name="flat_replies"            # ← changed: no clash with child_comments
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE
+        on_delete=models.CASCADE,
+        related_name="blog_replies"
     )
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
-    # Store user's image for frontend
-    user_image_url = models.URLField(blank=True, null=True)
+    class Meta:
+        ordering = ["created_at"]
+        verbose_name = "Blog Reply"
+        verbose_name_plural = "Blog Replies"
 
-    def save(self, *args, **kwargs):
-        if not self.user_image_url and self.user:
-            if hasattr(self.user, "profile_image_url"):
-                self.user_image_url = self.user.profile_image_url
-            elif hasattr(self.user, "image"):
-                self.user_image_url = self.user.image.url
-        super().save(*args, **kwargs)
+    def __str__(self):
+        return f"Reply by {self.user} to comment {self.comment_id}"
 
 
-# -------------------------------
+# ────────────────────────────────────────────────
 # BLOG LIKE
-# -------------------------------
+# ────────────────────────────────────────────────
 class BlogLike(models.Model):
     post = models.ForeignKey(
         BlogPost,
@@ -168,11 +159,12 @@ class BlogLike(models.Model):
 
     class Meta:
         unique_together = ("post", "user")
+        ordering = ["-created_at"]
 
 
-# -------------------------------
-# BLOG VIEWER (Track unique views & metadata)
-# -------------------------------
+# ────────────────────────────────────────────────
+# BLOG VIEWER
+# ────────────────────────────────────────────────
 class BlogViewer(models.Model):
     post = models.ForeignKey(
         BlogPost,
@@ -196,9 +188,10 @@ class BlogViewer(models.Model):
     viewed_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("post", "user", "session_id")  # Prevent duplicate views
+        unique_together = ("post", "user", "session_id")
+        ordering = ["-viewed_at"]
 
     def __str__(self):
         if self.user:
-            return f"{self.user.username} viewed {self.post.title}"
-        return f"Anonymous view ({self.session_id}) on {self.post.title}"
+            return f"{self.user} viewed {self.post}"
+        return f"Anonymous ({self.session_id}) viewed {self.post}"

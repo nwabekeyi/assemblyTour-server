@@ -14,8 +14,9 @@ from .serializers import (
 )
 from .validators import BlogCommentCreateData, BlogLikeToggleData, validate_or_raise
 
+
 # ───────────────────────────────────────────────
-# LIST BLOG POSTS
+# LIST BLOG POSTS (unchanged)
 # ───────────────────────────────────────────────
 class BlogPostListView(generics.ListAPIView):
     serializer_class = BlogPostListSerializer
@@ -52,7 +53,7 @@ class BlogPostListView(generics.ListAPIView):
 
 
 # ───────────────────────────────────────────────
-# BLOG DETAIL + TRACK VIEWERS
+# BLOG DETAIL + TRACK VIEWERS (unchanged)
 # ───────────────────────────────────────────────
 class BlogPostDetailView(generics.RetrieveAPIView):
     queryset = BlogPost.objects.filter(is_published=True)
@@ -101,7 +102,7 @@ class BlogPostDetailView(generics.RetrieveAPIView):
 
 
 # ───────────────────────────────────────────────
-# CREATE COMMENT
+# CREATE COMMENT – FIXED: context passed
 # ───────────────────────────────────────────────
 class BlogCommentCreateView(generics.CreateAPIView):
     serializer_class = BlogCommentSerializer
@@ -111,15 +112,18 @@ class BlogCommentCreateView(generics.CreateAPIView):
         post = get_object_or_404(BlogPost, id=self.kwargs["post_id"])
         validated_input = validate_or_raise(request.data, BlogCommentCreateData)
 
+        # Create comment
         serializer = self.get_serializer(data={"content": validated_input.content})
         serializer.is_valid(raise_exception=True)
-        serializer.save(post=post, user=request.user)
+        comment = serializer.save(post=post, user=request.user)
 
-        return api_response(data=serializer.data, message="Comment added successfully")
+        # Re-serialize with context so user_name & user_img_url are correct
+        output_serializer = self.get_serializer(comment, context=self.get_serializer_context())
+        return api_response(data=output_serializer.data, message="Comment added successfully")
 
 
 # ───────────────────────────────────────────────
-# EDIT COMMENT
+# EDIT COMMENT (unchanged – already correct)
 # ───────────────────────────────────────────────
 class BlogCommentEditView(generics.UpdateAPIView):
     queryset = BlogComment.objects.all()
@@ -138,7 +142,7 @@ class BlogCommentEditView(generics.UpdateAPIView):
 
 
 # ───────────────────────────────────────────────
-# DELETE COMMENT
+# DELETE COMMENT (unchanged)
 # ───────────────────────────────────────────────
 class BlogCommentDeleteView(generics.DestroyAPIView):
     queryset = BlogComment.objects.all()
@@ -154,7 +158,7 @@ class BlogCommentDeleteView(generics.DestroyAPIView):
 
 
 # ───────────────────────────────────────────────
-# LIST COMMENTS BY SLUG
+# LIST COMMENTS BY SLUG (unchanged – context auto-included in ListAPIView)
 # ───────────────────────────────────────────────
 class BlogCommentListBySlugView(generics.ListAPIView):
     serializer_class = BlogCommentSerializer
@@ -170,7 +174,7 @@ class BlogCommentListBySlugView(generics.ListAPIView):
 
 
 # ───────────────────────────────────────────────
-# CREATE REPLY
+# CREATE REPLY – FIXED: context passed
 # ───────────────────────────────────────────────
 class BlogReplyCreateView(generics.CreateAPIView):
     serializer_class = BlogReplySerializer
@@ -187,12 +191,14 @@ class BlogReplyCreateView(generics.CreateAPIView):
             user=request.user,
             content=content,
         )
-        serializer = self.get_serializer(reply)
+
+        # FIX: serialize with context so user_name & user_img_url work
+        serializer = self.get_serializer(reply, context=self.get_serializer_context())
         return api_response(data=serializer.data, message="Reply added successfully")
 
 
 # ───────────────────────────────────────────────
-# EDIT REPLY
+# EDIT REPLY (unchanged – already correct)
 # ───────────────────────────────────────────────
 class BlogReplyEditView(generics.UpdateAPIView):
     queryset = BlogReply.objects.all()
@@ -211,7 +217,7 @@ class BlogReplyEditView(generics.UpdateAPIView):
 
 
 # ───────────────────────────────────────────────
-# DELETE REPLY
+# DELETE REPLY (unchanged)
 # ───────────────────────────────────────────────
 class BlogReplyDeleteView(generics.DestroyAPIView):
     queryset = BlogReply.objects.all()
@@ -227,7 +233,7 @@ class BlogReplyDeleteView(generics.DestroyAPIView):
 
 
 # ───────────────────────────────────────────────
-# LIST REPLIES
+# LIST REPLIES (unchanged – context auto-included)
 # ───────────────────────────────────────────────
 class BlogReplyListView(generics.ListAPIView):
     serializer_class = BlogReplySerializer
@@ -243,7 +249,7 @@ class BlogReplyListView(generics.ListAPIView):
 
 
 # ───────────────────────────────────────────────
-# TOGGLE LIKE / UNLIKE
+# TOGGLE LIKE / UNLIKE (unchanged)
 # ───────────────────────────────────────────────
 class BlogLikeToggleView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
@@ -267,4 +273,4 @@ class BlogLikeToggleView(generics.GenericAPIView):
         return api_response(
             data={"likes_count": post.likes_count},
             message=f"Blog post successfully {action}",
-        )
+        )   

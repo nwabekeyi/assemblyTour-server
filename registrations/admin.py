@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, PermissionDenied
 from .models import RegistrationStep, HajjRegistration
 
 
@@ -41,13 +41,36 @@ class RegistrationStepAdmin(admin.ModelAdmin):
         }),
     )
 
+    def get_readonly_fields(self, request, obj=None):
+        """
+        Make the first step read-only
+        """
+        if obj and obj.order == 1:
+            # All fields become readonly for the first step
+            return [f.name for f in self.model._meta.fields]
+        return super().get_readonly_fields(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        """
+        Prevent deletion of the first step
+        """
+        if obj and obj.order == 1:
+            return False
+        return super().has_delete_permission(request, obj)
+
     def save_model(self, request, obj, form, change):
+        # Prevent editing the first step
+        if change and obj.order == 1:
+            raise PermissionDenied("The first registration step cannot be edited.")
+
+        # Keep existing validation for duplicate data_scope
         if not change and RegistrationStep.objects.filter(
             data_scope=obj.data_scope
         ).exists():
             raise ValidationError(
                 f"A step with data scope '{obj.data_scope}' already exists."
             )
+
         super().save_model(request, obj, form, change)
 
 

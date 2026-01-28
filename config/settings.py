@@ -48,7 +48,8 @@ INSTALLED_APPS = [
     'core',
     "homecontent.apps.HomecontentConfig",
     "sacredsites",
-    "faqs"
+    "faqs",
+    "newsletter",
 ]
 
 MIDDLEWARE = [

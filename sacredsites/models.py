@@ -22,7 +22,7 @@ def resize_image(file, max_width: int, max_height: int):
 # SACRED SITES
 # ===============================
 class SacredSite(models.Model):
-    name = models.CharField(max_length=200)
+    name = models.CharField(max_length=40)
     description = models.TextField()
 
     # Uploads to Cloudinary automatically

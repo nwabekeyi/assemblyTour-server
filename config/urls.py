@@ -14,5 +14,6 @@ urlpatterns = [
     path(API_PREFIX, include('faqs.urls')),
     path(f"{API_PREFIX}documents/", include('documents.urls')),
     path(API_PREFIX, include("sacredsites.urls")),
+    path(API_PREFIX, include("newsletter.urls")),
 
 ]

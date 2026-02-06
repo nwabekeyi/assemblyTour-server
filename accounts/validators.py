@@ -11,6 +11,7 @@ class AuthData(BaseModel):
     password: Optional[Annotated[str, Field(min_length=6)]]
     refresh: Optional[str]
     turnstileToken: Optional[str]
+    package_id: Optional[int]
 
     # ✅ Phone validation
     @field_validator("phone")
@@ -38,7 +39,7 @@ class AuthData(BaseModel):
         action = values.get('action')
 
         if action == 'register':
-            required_fields = ['phone', 'turnstileToken']
+            required_fields = ['phone']
         elif action == 'login':
             required_fields = ['username', 'password']
         elif action == 'refresh':

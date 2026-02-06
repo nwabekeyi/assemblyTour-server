@@ -12,6 +12,10 @@ from .serializers import AuthSerializer, UserProfileSerializer
 from .validators import AuthData
 from core.utils.api_response import api_response
 from core.utils.validators import validate_with_pydantic
+from packages.models import Package
+from django.db import transaction
+from registrations.models import HajjRegistration, RegistrationStep
+
 
 User = get_user_model()
 
@@ -42,79 +46,48 @@ class AuthView(generics.GenericAPIView):
     # Registration logic
     # -----------------------
     def _register(self, data):
-        # 1️⃣ Get Turnstile secret from environment
+        # 1️⃣ Turnstile verification
         turnstile_secret = os.getenv("CLOUDFLARE_SECRET_KEY")
         token = data.get("turnstileToken")
+        # if not token:
+        #     return api_response(False, "Turnstile token is missing", None, {"detail": "No token"}, 400)
 
-        if not token:
-            return api_response(
-                success=False,
-                message="Turnstile token is missing",
-                data=None,
-                errors={"detail": "No token provided"},
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
+        # resp = requests.post(
+        #     "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+        #     data={"secret": turnstile_secret, "response": token},
+        #     timeout=5
+        # )
+        # result = resp.json()
+        # if not result.get("success"):
+        #     return api_response(False, "Turnstile verification failed", None, {"detail": result.get("error-codes", "Unknown")}, 400)
 
-        # 2️⃣ Verify Turnstile token
-        try:
-            resp = requests.post(
-                "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-                data={
-                    "secret": turnstile_secret,
-                    "response": token
-                },
-                timeout=5
-            )
-            result = resp.json()
-        except requests.RequestException as e:
-            return api_response(
-                success=False,
-                message="Turnstile verification failed",
-                data=None,
-                errors={"detail": str(e)},
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
+        # 2️⃣ Package
+        package_id = data.get("package_id")
+        package = Package.objects.get(id=package_id)
 
-        if not result.get("success"):
-            return api_response(
-                success=False,
-                message="Turnstile verification failed",
-                data=None,
-                errors={"detail": result.get("error-codes", "Unknown error")},
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
+        # 3️⃣ Transactional creation
+        with transaction.atomic():
+            username = "user" + ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+            temp_password = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
 
-        # 3️⃣ Generate username and temporary password
-        username = "user" + ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
-        temp_password = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+            user = User.objects.create_user(phone=data['phone'], username=username, password=temp_password)
 
-        # 4️⃣ Create user with phone only
-        user = User.objects.create_user(
-            phone=data['phone'],
-            username=username,
-            password=temp_password
-        )
+            first_step = RegistrationStep.objects.get(order=1)
+            HajjRegistration.objects.create(user=user, current_step=first_step, package=package)
 
-        # 5️⃣ Generate JWT tokens
-        refresh = RefreshToken.for_user(user)
+            refresh = RefreshToken.for_user(user)
 
+        # 4️⃣ Response
         return api_response(
             success=True,
             message="User registered successfully",
             data={
-                "user": {
-                    "id": user.id,
-                    "username": user.username,
-                    "phone": user.phone,
-                },
+                "user": {"id": user.id, "username": user.username, "phone": user.phone, "package": {"id": package.id, "name": package.name}},
                 "temp_password": temp_password,
-                "tokens": {
-                    "refresh": str(refresh),
-                    "access": str(refresh.access_token),
-                },
+                "tokens": {"refresh": str(refresh), "access": str(refresh.access_token)},
             },
             errors=None,
-            status_code=status.HTTP_201_CREATED,
+            status_code=201,
         )
 
     # -----------------------
@@ -160,12 +133,23 @@ class AuthView(generics.GenericAPIView):
             status_code=status.HTTP_200_OK,
         )
 
-    # -----------------------
-    # Refresh token logic
-    # -----------------------
-    def _refresh_token(self, data):
+class RefreshTokenView(generics.GenericAPIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        refresh_token = request.data.get("refresh")
+
+        if not refresh_token:
+            return api_response(
+                success=False,
+                message="Refresh token is required",
+                data=None,
+                errors={"refresh": "This field is required"},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
-            refresh = RefreshToken(data['refresh'])
+            refresh = RefreshToken(refresh_token)
         except Exception:
             return api_response(
                 success=False,
@@ -178,7 +162,9 @@ class AuthView(generics.GenericAPIView):
         return api_response(
             success=True,
             message="Access token refreshed successfully",
-            data={"access": str(refresh.access_token)},
+            data={
+                "access": str(refresh.access_token),
+            },
             errors=None,
             status_code=status.HTTP_200_OK,
         )

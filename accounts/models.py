@@ -115,9 +115,16 @@ class User(AbstractUser):
 
     # Auth config
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['phone']  # username is optional now
+    REQUIRED_FIELDS = ['phone']
 
     objects = UserManager()
 
     def __str__(self):
-        return self.email
+    # Return username > email > phone > fallback string
+     return (
+        self.username
+        or self.email
+        or self.phone
+        or f"User #{self.id}"
+     )
+

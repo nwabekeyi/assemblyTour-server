@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
+from django.utils.html import format_html
 from .models import User
 
 # Customize site titles
@@ -61,8 +62,11 @@ class CustomUserAdmin(UserAdmin):
     get_username_safe.short_description = "Username"
 
     def get_profile_picture_safe(self, obj):
-        """Return profile picture URL or placeholder if null."""
+        """Return profile picture image or placeholder if null."""
         if obj.profile_picture:
-            return obj.profile_picture
+            return format_html(
+                '<a href="{}" target="_blank"><img src="{}" style="width:50px;height:50px;object-fit:cover;border-radius:50%%;" /></a>',
+                obj.profile_picture, obj.profile_picture
+            )
         return "(no profile picture)"
     get_profile_picture_safe.short_description = "Profile Picture"

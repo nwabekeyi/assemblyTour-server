@@ -1,0 +1,27 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}Assembly Tour Console | {{ title }}{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'admin/custom.css' %}">
+{% endblock %}
+
+{% block branding %}
+  <a class="at-brand" href="{% url 'admin:index' %}">
+    <div class="at-brand__logo">AT</div>
+    <div class="at-brand__text">
+      <span class="at-brand__title">Assembly Tour</span>
+      <span class="at-brand__subtitle">Operations Console</span>
+    </div>
+  </a>
+{% endblock %}
+
+{% block nav-global %}
+  <ul class="at-quick-links">
+    <li><a href="/" target="_blank">View site</a></li>
+    <li><a href="mailto:ops@assemblytour.com">Support</a></li>
+    <li><a href="https://docs.assemblytour.com" target="_blank" rel="noreferrer">Docs</a></li>
+  </ul>
+{% endblock %}

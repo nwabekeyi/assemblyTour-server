@@ -6,6 +6,12 @@ from .models import (
     HajjRegistration,
     RegistrationStep,
     RegistrationStepReview,
+    TravelDocument,
+    TravelDocumentType,
+    SupportTicket,
+    SupportTicketReply,
+    ManasikGuidance,
+    EmergencyContact,
 )
 
 User = get_user_model()
@@ -47,11 +53,16 @@ class UserHajjRegistrationSerializer(serializers.ModelSerializer):
     # rejection reason for CURRENT step
     current_step_rejection_reason = serializers.SerializerMethodField()
 
+    # travel documents from admin
+    travel_documents = serializers.SerializerMethodField()
+
     class Meta:
         model = HajjRegistration
         fields = [
             'id',
             'status',
+            'visa_status',
+            'visa_status_notes',
             'current_step',
             'current_step_rejection_reason',
             'completed_steps',
@@ -60,6 +71,11 @@ class UserHajjRegistrationSerializer(serializers.ModelSerializer):
             'package',
             'passport_document',
             'yellow_card_document',
+            'travel_documents',
+            'ticket_info',
+            'hotel_info',
+            'journey_presence_status',
+            'journey_presence_notes',
             'created_at',
             'updated_at',
         ]
@@ -85,6 +101,9 @@ class UserHajjRegistrationSerializer(serializers.ModelSerializer):
         ).first()
 
         return review.rejection_reason if review else None
+
+    def get_travel_documents(self, obj):
+        return TravelDocumentSerializer(obj.travel_documents.all(), many=True).data
 
 
 # -----------------------------
@@ -125,12 +144,12 @@ class AccountSetupSerializer(serializers.Serializer):
             )
         return value
 
-    def validate(self, data):
-        if data['password'] != data['password_confirm']:
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError(
                 "The two passwords do not match."
             )
-        return data
+        return attrs
 
 
 # -----------------------------
@@ -188,3 +207,94 @@ class RegistrationFormSerializer(serializers.Serializer):
 class DocumentUploadSerializer(serializers.Serializer):
     passport = serializers.FileField(required=True)
     yellow_card = serializers.FileField(required=True)
+
+
+# -----------------------------
+# TRAVEL DOCUMENTS (Admin Uploaded)
+# -----------------------------
+class TravelDocumentSerializer(serializers.ModelSerializer):
+    uploaded_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TravelDocument
+        fields = ['id', 'doc_type', 'title', 'file', 'description', 'uploaded_by_name', 'uploaded_at']
+        read_only_fields = ['id', 'uploaded_by_name', 'uploaded_at']
+
+    def get_uploaded_by_name(self, obj):
+        if obj.uploaded_by:
+            return obj.uploaded_by.username or obj.uploaded_by.email or obj.uploaded_by.phone
+        return None
+
+
+class TravelDocumentUploadSerializer(serializers.Serializer):
+    doc_type = serializers.ChoiceField(choices=TravelDocumentType.choices)
+    title = serializers.CharField(max_length=100)
+    file = serializers.FileField(required=True)
+    description = serializers.CharField(required=False, allow_blank=True)
+
+
+# -----------------------------
+# SUPPORT TICKETS
+# -----------------------------
+class SupportTicketReplySerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SupportTicketReply
+        fields = ['id', 'user_name', 'message', 'is_internal', 'created_at']
+        read_only_fields = ['id', 'user_name', 'created_at']
+
+    def get_user_name(self, obj):
+        if obj.user:
+            return obj.user.username or obj.user.email or obj.user.phone
+        return None
+
+
+class SupportTicketSerializer(serializers.ModelSerializer):
+    replies = SupportTicketReplySerializer(many=True, read_only=True)
+
+    class Meta:
+        model = SupportTicket
+        fields = [
+            'id', 'category', 'subject', 'message', 'status',
+            'resolved_response', 'created_at', 'updated_at', 'replies'
+        ]
+        read_only_fields = ['id', 'status', 'resolved_response', 'created_at', 'updated_at']
+
+
+class SupportTicketCreateSerializer(serializers.Serializer):
+    category = serializers.ChoiceField(choices=[
+        ('registration', 'Registration'),
+        ('payment', 'Payment'),
+        ('documents', 'Documents'),
+        ('travel', 'Travel Info'),
+        ('visa', 'Visa'),
+        ('other', 'Other'),
+    ])
+    registration_id = serializers.IntegerField(required=False, allow_null=True)
+    subject = serializers.CharField(max_length=200)
+    message = serializers.CharField()
+
+
+class SupportTicketReplyCreateSerializer(serializers.Serializer):
+    message = serializers.CharField()
+
+
+# -----------------------------
+# MANASIK GUIDANCE
+# -----------------------------
+class ManasikGuidanceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ManasikGuidance
+        fields = ['id', 'title', 'guidance_type', 'content', 'icon', 'order', 'is_active']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+# -----------------------------
+# EMERGENCY CONTACTS
+# -----------------------------
+class EmergencyContactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmergencyContact
+        fields = ['id', 'name', 'contact_type', 'value', 'description', 'is_active', 'order']
+        read_only_fields = ['id']

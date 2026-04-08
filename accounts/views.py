@@ -14,7 +14,7 @@ from core.utils.api_response import api_response
 from core.utils.validators import validate_with_pydantic
 from packages.models import Package
 from django.db import transaction
-from registrations.models import HajjRegistration, RegistrationStep
+from registrations.models import HajjRegistration, RegistrationStep, RegistrationStatus
 
 
 User = get_user_model()
@@ -64,6 +64,22 @@ class AuthView(generics.GenericAPIView):
         # 2️⃣ Package
         package_id = data.get("package_id")
         package = Package.objects.get(id=package_id)
+
+        # 2b️⃣ Check for existing active registration
+        existing = HajjRegistration.objects.filter(
+            phone=data['phone']
+        ).exclude(
+            status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]
+        ).first()
+        
+        if existing:
+            return api_response(
+                success=False,
+                message="You already have an active registration. Please complete or cancel it before starting a new one.",
+                data=None,
+                errors={"existing_registration": "Active registration exists"},
+                status_code=400,
+            )
 
         # 3️⃣ Transactional creation
         with transaction.atomic():

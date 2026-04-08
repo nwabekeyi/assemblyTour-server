@@ -2,15 +2,42 @@
 {% load static %}
 
 {% block after_field_sets %}
-    {% if original.current_step.code == "registration_form" %}
-        <div style="margin-top: 1em; padding: 1em; border: 1px solid #ccc; border-radius: 4px;">
-            <h3>Step 2 Actions</h3>
-            <div style="margin-bottom: 0.5em;">
-                <label>Rejection Reason (if rejecting):</label>
-                <input type="text" name="reason" placeholder="Enter reason" style="width: 60%;" />
-            </div>
-            <button name="_approve_step2" type="submit" class="button default">Approve Step 2</button>
-            <button name="_reject_step2" type="submit" class="button default" style="background:#e53e3e;color:white;">Reject Step 2</button>
+    {% if not original.passport_document or not original.yellow_card_document %}
+        <div style="margin: 1em 0; padding: 1em; border-radius: 12px; background: #fdf2f8; border: 1px solid #f472b6;">
+            <strong style="display:block; color:#9d174d; margin-bottom:0.4em;">Pending upload</strong>
+            <p style="margin:0; color:#831843;">This pilgrim has not provided the required documents yet. Reach out to the user to complete step 3.</p>
         </div>
     {% endif %}
+
+    {# Step 2: registration_form - User bio approval #}
+    {% if original.current_step.code == "registration_form" %}
+        <div style="margin-top: 1em; padding: 1em; border: 2px solid #ecc94b; border-radius: 4px; background: #fffff0;">
+            <h3>Step 2: Approve Bio-Data</h3>
+            <p style="color: #666; margin-bottom: 1em;">Review user's personal information and approve or reject.</p>
+            <div style="margin-bottom: 1em;">
+                <label>Rejection Reason (if rejecting):</label>
+                <input type="text" name="reason" placeholder="Enter reason for rejection" style="width: 60%; padding: 5px;" />
+            </div>
+            <button name="_approve_step2" type="submit" class="button default" style="background:#38a169; color:white; padding: 8px 16px;">Approve Bio-Data</button>
+            <button name="_reject_step2" type="submit" class="button default" style="background:#e53e3e; color:white; padding: 8px 16px;">Reject</button>
+        </div>
+    {% endif %}
+
+    {# Step 4: document_review - Document approval #}
+    {% if original.current_step.code == "document_review" %}
+        <div style="margin-top: 1em; padding: 1em; border: 2px solid #ecc94b; border-radius: 4px; background: #fffff0;">
+            <h3>Step 4: Approve Documents</h3>
+            <p style="color: #666; margin-bottom: 1em;">Review user's passport and yellow card documents.</p>
+            <div style="margin-bottom: 1em;">
+                <label>Rejection Reason (if rejecting):</label>
+                <input type="text" name="reason" placeholder="Enter reason for rejection" style="width: 60%; padding: 5px;" />
+            </div>
+            <button name="_approve_step3" type="submit" class="button default" style="background:#38a169; color:white; padding: 8px 16px;">Approve Documents</button>
+            <button name="_reject_step3" type="submit" class="button default" style="background:#e53e3e; color:white; padding: 8px 16px;">Reject Documents</button>
+        </div>
+    {% endif %}
+{% endblock %}
+
+{% block inline_field_sets %}
+    {{ block.super }}
 {% endblock %}

@@ -57,6 +57,19 @@ class RegistrationStatus(models.TextChoices):
     FAILED = "failed", "Failed"
 
 
+class VisaStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    READY = "ready", "Ready"
+    FAILED = "failed", "Failed"
+
+
+class JourneyPresenceStatus(models.TextChoices):
+    PRE_TRAVEL = "pre_travel", "Awaiting Travel"
+    IN_MECCA = "in_mecca", "In Mecca"
+    ARRIVED = "arrived", "Arrived"
+    DID_NOT_ARRIVE = "did_not_arrive", "Did Not Arrive"
+
+
 class HajjRegistration(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -64,16 +77,10 @@ class HajjRegistration(models.Model):
         related_name="hajj_registration"
     )
 
-    passport_document = models.FileField(
-        upload_to='hajj/passports/',
-        null=True,
-        blank=True
-    )
-    yellow_card_document = models.FileField(
-        upload_to='hajj/yellow_cards/',
-        null=True,
-        blank=True
-    )
+    passport_document = models.URLField(max_length=500, null=True, blank=True)
+    passport_document_public_id = models.CharField(max_length=255, null=True, blank=True)
+    yellow_card_document = models.URLField(max_length=500, null=True, blank=True)
+    yellow_card_document_public_id = models.CharField(max_length=255, null=True, blank=True)
     current_step = models.ForeignKey(
         RegistrationStep, on_delete=models.PROTECT, related_name="registrations"
     )
@@ -92,11 +99,24 @@ class HajjRegistration(models.Model):
         null=True,
         blank=True
     )
+    visa_status = models.CharField(
+        max_length=20,
+        choices=VisaStatus.choices,
+        default=VisaStatus.PENDING,
+        help_text="Overall visa readiness status"
+    )
+    visa_status_notes = models.TextField(blank=True, null=True)
 
     # --- Journey & Travel Details (Populated by Admin) ---
     ticket_info = models.TextField(blank=True, null=True, help_text="Flight/Travel details")
     hotel_info = models.TextField(blank=True, null=True, help_text="Accommodation details")
-    package_benefits = models.TextField(blank=True, null=True, help_text="Specific benefits for this user")
+    journey_presence_status = models.CharField(
+        max_length=20,
+        choices=JourneyPresenceStatus.choices,
+        default=JourneyPresenceStatus.PRE_TRAVEL,
+        help_text="Tracks traveler presence during and after the journey"
+    )
+    journey_presence_notes = models.TextField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -115,6 +135,71 @@ class HajjRegistration(models.Model):
 
 
 # -----------------------------
+# TRAVEL DOCUMENTS (Uploaded by Admin)
+# -----------------------------
+class TravelDocumentType(models.TextChoices):
+    VISA = "visa", "Visa"
+    TICKET = "ticket", "Flight Ticket"
+    HOTEL_VOUCHER = "hotel_voucher", "Hotel Voucher"
+
+
+class TravelDocument(models.Model):
+    registration = models.ForeignKey(
+        HajjRegistration,
+        on_delete=models.CASCADE,
+        related_name="travel_documents"
+    )
+    doc_type = models.CharField(
+        max_length=20,
+        choices=TravelDocumentType.choices,
+        default=TravelDocumentType.VISA
+    )
+    title = models.CharField(max_length=100)
+    file = models.FileField(upload_to='travel_documents/')
+    description = models.TextField(blank=True, null=True)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="uploaded_travel_documents"
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("registration", "doc_type")]
+
+    def __str__(self):
+        return f"{self.registration.user.email} - {self.doc_type} - {self.title}"
+
+
+# -----------------------------
+# PAYMENT DETAILS (Uploaded by User)
+# -----------------------------
+class PaymentDetail(models.Model):
+    registration = models.ForeignKey(
+        HajjRegistration,
+        on_delete=models.CASCADE,
+        related_name="payment_details"
+    )
+    title = models.CharField(max_length=100, help_text="e.g., Bank Transfer Receipt, Payment Proof")
+    file = models.FileField(upload_to='payment_details/')
+    description = models.TextField(blank=True, help_text="Additional notes about the payment")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="uploaded_payment_details"
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("registration", "title")]
+
+    def __str__(self):
+        return f"{self.registration.user.email} - {self.title}"
+
+
+# -----------------------------
 # STEP 8: MULTIPLE DOCUMENTS
 # -----------------------------
 class RegistrationAdditionalDocument(models.Model):
@@ -128,7 +213,7 @@ class RegistrationAdditionalDocument(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.title} - {self.registration.user.phone}"
+        return f"{self.registration.user.email} - {self.title}"
 
 
 # -----------------------------
@@ -186,3 +271,177 @@ class RegistrationStepReview(models.Model):
         self.reviewed_by = user
         self.reviewed_at = timezone.now()
         self.save()
+
+
+class UserDashboardStats(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="dashboard_stats"
+    )
+    total_travels = models.PositiveIntegerField(default=0)
+    in_progress_travels = models.PositiveIntegerField(default=0)
+    completed_travels = models.PositiveIntegerField(default=0)
+    failed_travels = models.PositiveIntegerField(default=0)
+    last_refresh = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "User Dashboard Stat"
+        verbose_name_plural = "User Dashboard Stats"
+
+    def __str__(self):
+        return f"Stats for {self.user}"
+
+
+# -----------------------------
+# USER SUPPORT TICKETS
+# -----------------------------
+class SupportTicketStatus(models.TextChoices):
+    OPEN = "open", "Open"
+    IN_PROGRESS = "in_progress", "In Progress"
+    PENDING = "pending", "Pending User Reply"
+    RESOLVED = "resolved", "Resolved"
+    CLOSED = "closed", "Closed"
+
+
+class SupportTicketCategory(models.TextChoices):
+    REGISTRATION = "registration", "Registration"
+    PAYMENT = "payment", "Payment"
+    DOCUMENTS = "documents", "Documents"
+    TRAVEL = "travel", "Travel Info"
+    VISA = "visa", "Visa"
+    OTHER = "other", "Other"
+
+
+class SupportTicket(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="support_tickets"
+    )
+    registration = models.ForeignKey(
+        HajjRegistration,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="support_tickets"
+    )
+    category = models.CharField(
+        max_length=20,
+        choices=SupportTicketCategory.choices,
+        default=SupportTicketCategory.OTHER
+    )
+    subject = models.CharField(max_length=200)
+    message = models.TextField()
+    status = models.CharField(
+        max_length=20,
+        choices=SupportTicketStatus.choices,
+        default=SupportTicketStatus.OPEN
+    )
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="assigned_tickets"
+    )
+    resolved_response = models.TextField(blank=True, null=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="resolved_tickets"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"#{self.id} - {self.subject} - {self.user.email}"
+
+
+class SupportTicketReply(models.Model):
+    ticket = models.ForeignKey(
+        SupportTicket,
+        on_delete=models.CASCADE,
+        related_name="replies"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="ticket_replies"
+    )
+    message = models.TextField()
+    is_internal = models.BooleanField(
+        default=False,
+        help_text="Admin-only internal notes"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"Reply to #{self.ticket.id} by {self.user.email}"
+
+
+# -----------------------------
+# MANASIK GUIDANCE (Admin Posted)
+# -----------------------------
+class ManasikGuidanceType(models.TextChoices):
+    IHRAM = "ihram", "Ihram Guide"
+    TAWAF = "tawaf", "Tawaf & Sa'i"
+    DUA = "dua", "Dua & Prayers"
+    GENERAL = "general", "General Guide"
+
+
+class ManasikGuidance(models.Model):
+    title = models.CharField(max_length=200)
+    guidance_type = models.CharField(
+        max_length=20,
+        choices=ManasikGuidanceType.choices,
+        default=ManasikGuidanceType.GENERAL
+    )
+    content = models.TextField()
+    icon = models.CharField(max_length=10, default="📖")
+    order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return f"{self.title} ({self.guidance_type})"
+
+
+# -----------------------------
+# EMERGENCY CONTACTS
+# -----------------------------
+class ContactType(models.TextChoices):
+    PHONE = "phone", "Phone"
+    WHATSAPP = "whatsapp", "WhatsApp"
+    EMAIL = "email", "Email"
+    TELEGRAM = "telegram", "Telegram"
+
+
+class EmergencyContact(models.Model):
+    name = models.CharField(max_length=100)
+    contact_type = models.CharField(
+        max_length=20,
+        choices=ContactType.choices
+    )
+    value = models.CharField(max_length=200)
+    description = models.CharField(max_length=200, blank=True)
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return f"{self.name} - {self.contact_type}: {self.value}"

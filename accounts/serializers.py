@@ -16,6 +16,7 @@ class AuthSerializer(serializers.Serializer):
     # Fields
     username = serializers.CharField(required=False)
     phone = serializers.CharField(required=False)
+    email = serializers.CharField(required=False)
     password = serializers.CharField(write_only=True, required=False)
     refresh = serializers.CharField(write_only=True, required=False)
     turnstileToken = serializers.CharField(write_only=True, required=False)
@@ -25,7 +26,7 @@ class AuthSerializer(serializers.Serializer):
         action = attrs.get('action')
 
         if action == 'register':
-            required_fields = ['phone']  # require token for registration
+            required_fields = ['email']  # require email for registration
         elif action == 'login':
             required_fields = ['username', 'password']
         elif action == 'refresh':

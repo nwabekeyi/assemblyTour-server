@@ -65,9 +65,10 @@ class AuthView(generics.GenericAPIView):
         package_id = data.get("package_id")
         package = Package.objects.get(id=package_id)
 
-        # 2b️⃣ Check for existing active registration
+        # 2b️⃣ Check for existing active registration using email
+        user_email = data.get('email', '').lower()
         existing = HajjRegistration.objects.filter(
-            phone=data['phone']
+            user__email=user_email
         ).exclude(
             status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]
         ).first()
@@ -81,25 +82,48 @@ class AuthView(generics.GenericAPIView):
                 status_code=400,
             )
 
+        # 2c️⃣ Check if email already exists
+        if User.objects.filter(email=user_email).exists():
+            return api_response(
+                success=False,
+                message="An account with this email already exists.",
+                data=None,
+                errors={"email": "A user with this email already exists."},
+                status_code=400,
+            )
+
         # 3️⃣ Transactional creation
         with transaction.atomic():
             username = "user" + ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
             temp_password = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
 
-            user = User.objects.create_user(phone=data['phone'], username=username, password=temp_password)
+            user = User.objects.create_user(
+                phone="",
+                email=user_email,
+                username=username,
+                password=temp_password
+            )
 
             first_step = RegistrationStep.objects.get(order=1)
             HajjRegistration.objects.create(user=user, current_step=first_step, package=package)
 
             refresh = RefreshToken.for_user(user)
 
-        # 4️⃣ Response
+        # 4️⃣ Send login credentials via email
+        from core.services.email_service import send_login_credentials_email
+        send_login_credentials_email(
+            user_email=user_email,
+            username=username,
+            temp_password=temp_password,
+            package_name=package.name
+        )
+
+        # 5️⃣ Response
         return api_response(
             success=True,
             message="User registered successfully",
             data={
-                "user": {"id": user.id, "username": user.username, "phone": user.phone, "package": {"id": package.id, "name": package.name}},
-                "temp_password": temp_password,
+                "user": {"id": user.id, "username": user.username, "email": user.email, "package": {"id": package.id, "name": package.name}},
                 "tokens": {"refresh": str(refresh), "access": str(refresh.access_token)},
             },
             errors=None,

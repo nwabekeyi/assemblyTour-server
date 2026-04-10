@@ -167,6 +167,85 @@ def send_support_ticket_closed_email(user_email, ticket_id, subject, response):
 
 Your support ticket has been closed.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TICKET DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ticket ID: #{ticket_id}
+Subject: {subject}
+Status: CLOSED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RESPONSE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{response}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+If you need further assistance, please create a new support ticket.
+
+Best regards,
+Assembly Tour Team'''
+
+    try:
+        send_mail(
+            subject=email_subject,
+            message=email_body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user_email],
+            fail_silently=False,
+        )
+        logger.info(f"Ticket closed email sent to {user_email} for ticket #{ticket_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send ticket closed email: {str(e)}")
+        return False
+
+
+def send_login_credentials_email(user_email, username, temp_password, package_name):
+    """Send login credentials to user after registration."""
+    if not user_email:
+        logger.warning("Cannot send login credentials: no user email")
+        return False
+
+    email_subject = "🔐 Your Assembly Tour Login Credentials"
+    email_body = f'''Welcome to Assembly Tour!
+
+Thank you for registering for the {package_name} package.
+
+Here are your login credentials:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+USERNAME: {username}
+PASSWORD: {temp_password}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Please login and change your password immediately for security purposes.
+
+Login URL: https://assemblytours.com/login
+
+If you did not initiate this registration, please contact support immediately.
+
+Best regards,
+Assembly Tour Team'''
+
+    try:
+        send_mail(
+            subject=email_subject,
+            message=email_body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user_email],
+            fail_silently=False,
+        )
+        logger.info(f"Login credentials sent to {user_email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send login credentials to {user_email}: {str(e)}")
+        return False
+
+    email_subject = f"✅ Support Ticket Closed - #{ticket_id}"
+    email_body = f'''Hello,
+
+Your support ticket has been closed.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 TICKET DETAILS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

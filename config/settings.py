@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     "sacredsites",
     "faqs",
     "newsletter",
+    "testimonials",
 ]
 
 MIDDLEWARE = [

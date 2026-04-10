@@ -16,14 +16,14 @@ class UserManager(BaseUserManager):
     use_in_migrations = True
 
     def create_user(self, phone, password=None, email=None, username=None, **extra_fields):
-        if not phone:
-            raise ValueError("Phone is required")
+        if not phone and not email:
+            raise ValueError("Either phone or email is required")
 
         if email:
             email = self.normalize_email(email)
 
         user = self.model(
-            phone=phone,
+            phone=phone or "",
             email=email,
             username=username,
             **extra_fields

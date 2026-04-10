@@ -7,29 +7,21 @@ class AuthData(BaseModel):
     action: Literal['register', 'login', 'refresh']
 
     username: Optional[Annotated[str, Field(min_length=3, max_length=30)]]
-    phone: Optional[str]
+    email: Optional[Annotated[str, Field(max_length=254)]]
     password: Optional[Annotated[str, Field(min_length=6)]]
     refresh: Optional[str]
     turnstileToken: Optional[str]
     package_id: Optional[int]
 
-    # ✅ Phone validation
-    @field_validator("phone")
+    # ✅ Email validation
+    @field_validator("email")
     @classmethod
-    def validate_nigerian_phone(cls, v):
+    def validate_email_format(cls, v):
         if v is None:
             return v
 
-        if not v.startswith("+234"):
-            raise ValueError("Phone number must start with +234")
-
-        digits_only = v[1:]  # remove +
-
-        if not digits_only.isdigit():
-            raise ValueError("Phone number must contain only digits after +")
-
-        if len(digits_only) != 13:
-            raise ValueError("Phone number must be exactly 13 digits excluding '+'")
+        if v and '@' not in v:
+            raise ValueError("Invalid email address")
 
         return v
 
@@ -39,7 +31,7 @@ class AuthData(BaseModel):
         action = values.get('action')
 
         if action == 'register':
-            required_fields = ['phone']
+            required_fields = ['email']
         elif action == 'login':
             required_fields = ['username', 'password']
         elif action == 'refresh':

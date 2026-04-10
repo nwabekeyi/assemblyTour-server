@@ -11,76 +11,43 @@
   <section class="at-hero">
     <div>
       <p class="at-hero__eyebrow">Welcome back, {{ user.first_name|default:user.get_username }}</p>
-      <h1 class="at-hero__title">Modern Operations Dashboard</h1>
-      <p>Monitor pilgrim onboarding, keep travel assets up to date, and stay ahead of upcoming departures with real‑time visibility.</p>
+      <h1 class="at-hero__title">Operations Dashboard</h1>
+      <p>Monitor pilgrim onboarding, manage travel packages, and stay ahead of upcoming departures with real‑time visibility.</p>
     </div>
     <div class="at-hero__actions">
-      <a class="at-btn at-btn--primary" href="{% url 'admin:registrations_hajjregistration_changelist' %}">Manage Registrations</a>
-      <a class="at-btn at-btn--ghost" href="{% url 'admin:packages_package_changelist' %}">Packages</a>
-      <a class="at-btn at-btn--ghost" href="{% url 'admin:blog_blogpost_changelist' %}">Content</a>
+      <a class="at-btn at-btn--primary" href="{% url 'admin:registrations_hajjregistration_changelist' %}">
+        Manage Registrations
+      </a>
+      <a class="at-btn at-btn--ghost" href="{% url 'admin:packages_package_changelist' %}">
+        Packages
+      </a>
+      <a class="at-btn at-btn--ghost" href="{% url 'admin:blog_blogpost_changelist' %}">
+        Content
+      </a>
     </div>
   </section>
 
   <div class="at-stats-grid">
     <article class="at-stat-card">
-      <small>Active Pilgrims</small>
+      <small>Total Pilgrims</small>
       <strong>{{ total_regs }}</strong>
-      <p class="text-muted">Total registrations tracked across the platform.</p>
+      <p class="text-muted">All registrations across the platform</p>
     </article>
     <article class="at-stat-card">
-      <small>Awaiting Documents</small>
+      <small>Awaiting Review</small>
       <strong>{{ pending_regs }}</strong>
-      <p class="text-muted">Pilgrims currently working on onboarding steps.</p>
+      <p class="text-muted">Pilgrims in onboarding process</p>
     </article>
     <article class="at-stat-card">
-      <small>Cleared Journeys</small>
+      <small>Approved</small>
       <strong>{{ completed_regs }}</strong>
-      <p class="text-muted">Approved applications ready for travel.</p>
+      <p class="text-muted">Ready for travel</p>
     </article>
     <article class="at-stat-card">
-      <small>Requires Attention</small>
+      <small>Needs Attention</small>
       <strong>{{ failed_regs }}</strong>
-      <p class="text-muted">Registrations flagged for follow-up.</p>
+      <p class="text-muted">Flagged for follow-up</p>
     </article>
   </div>
-
-  <section class="at-app-section">
-    <h2 class="at-section-title">Modules &amp; Data Sources</h2>
-    {% if app_list %}
-      <div class="at-app-grid">
-        {% for app in app_list %}
-          <article class="at-app-card">
-            <div class="at-app-card__header">
-              <div>
-                <h3>{{ app.name }}</h3>
-                <p class="at-app-card__badge">{{ app.models|length }} models</p>
-              </div>
-              <span class="at-chip at-chip--blue">App {{ forloop.counter }}</span>
-            </div>
-            <ul class="at-model-list">
-              {% for model in app.models %}
-                <li>
-                  <span>{{ model.name }}</span>
-                  <div class="at-model-actions">
-                    {% if model.add_url %}
-                      <a class="at-link-btn" href="{{ model.add_url }}">Add</a>
-                    {% endif %}
-                    {% if model.admin_url %}
-                      <a class="at-link-btn" href="{{ model.admin_url }}">Manage</a>
-                    {% endif %}
-                  </div>
-                </li>
-              {% endfor %}
-            </ul>
-          </article>
-        {% endfor %}
-      </div>
-    {% else %}
-      <div class="at-empty-state">
-        <h3>Nothing to manage yet</h3>
-        <p>The admin does not have any registered models. Hook up your apps to start managing content from here.</p>
-      </div>
-    {% endif %}
-  </section>
 </div>
 {% endblock %}

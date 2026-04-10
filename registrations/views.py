@@ -155,6 +155,47 @@ class RegistrationFormView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
+    def get(self, request):
+        try:
+            registration = HajjRegistration.objects.filter(
+                user=request.user,
+                status__in=['not_started', 'pending', 'in_progress']
+            ).select_related('current_step').first()
+        except HajjRegistration.DoesNotExist:
+            return api_response(
+                success=False,
+                message="Registration not found",
+                status_code=404
+            )
+
+        if not registration or registration.current_step.code != "registration_form":
+            return api_response(
+                success=False,
+                message="Not at registration form step",
+                status_code=400
+            )
+
+        user = request.user
+        
+        user_data = {
+            'email': user.email or "",
+            'first_name': user.first_name or "",
+            'last_name': user.last_name or "",
+            'date_of_birth': user.date_of_birth.isoformat() if user.date_of_birth else None,
+            'gender': user.gender or "",
+            'profile_picture': user.profile_picture.url if user.profile_picture else None,
+            'nationality': user.nationality or "",
+            'state_of_origin': user.state_of_origin or "",
+            'passport_number': user.passport_number or "",
+            'passport_expiry': user.passport_expiry.isoformat() if user.passport_expiry else None,
+            'address': user.address or "",
+            'emergency_contact_name': user.emergency_contact_name or "",
+            'emergency_contact_phone': user.emergency_contact_phone or "",
+            'phone': user.phone or "",
+        }
+
+        return api_response(success=True, data=user_data)
+
     def patch(self, request):
         try:
             registration = HajjRegistration.objects.select_related(
@@ -174,7 +215,49 @@ class RegistrationFormView(APIView):
                 status_code=400
             )
 
-        serializer = RegistrationFormSerializer(data=request.data)
+        user = request.user
+        
+        # Check if this is a returning user with existing data
+        # Only require fields that are NOT already set in the user profile
+        data = request.data.copy()
+        fields_that_can_skip = []
+        
+        if user.email:
+            data.pop('email', None)
+            fields_that_can_skip.append('email')
+        if user.first_name:
+            data.pop('first_name', None)
+            fields_that_can_skip.append('first_name')
+        if user.last_name:
+            data.pop('last_name', None)
+            fields_that_can_skip.append('last_name')
+        if user.date_of_birth:
+            data.pop('date_of_birth', None)
+            fields_that_can_skip.append('date_of_birth')
+        if user.gender:
+            data.pop('gender', None)
+            fields_that_can_skip.append('gender')
+        if user.nationality:
+            data.pop('nationality', None)
+            fields_that_can_skip.append('nationality')
+        if user.state_of_origin:
+            data.pop('state_of_origin', None)
+            fields_that_can_skip.append('state_of_origin')
+        if user.address:
+            data.pop('address', None)
+            fields_that_can_skip.append('address')
+        if user.emergency_contact_name:
+            data.pop('emergency_contact_name', None)
+            fields_that_can_skip.append('emergency_contact_name')
+        if user.emergency_contact_phone:
+            data.pop('emergency_contact_phone', None)
+            fields_that_can_skip.append('emergency_contact_phone')
+        if user.phone:
+            data.pop('phone', None)
+            fields_that_can_skip.append('phone')
+        # Profile picture and passport are always required (need fresh upload)
+        
+        serializer = RegistrationFormSerializer(data=data, partial=True)
         if not serializer.is_valid():
             return api_response(
                 success=False,
@@ -183,8 +266,9 @@ class RegistrationFormView(APIView):
                 status_code=400
             )
 
-        email = serializer.validated_data['email']
-        if User.objects.filter(email=email).exclude(id=request.user.id).exists():
+        # Validate email uniqueness only if email is being changed
+        email = serializer.validated_data.get('email')
+        if email and User.objects.filter(email=email).exclude(id=request.user.id).exists():
             return api_response(
                 success=False,
                 message="Validation failed",
@@ -193,9 +277,7 @@ class RegistrationFormView(APIView):
             )
 
         with transaction.atomic():
-            user = request.user
-
-            # ✅ Update existing user fields
+            # Update fields that were provided
             for field, value in serializer.validated_data.items():
                 setattr(user, field, value)
 

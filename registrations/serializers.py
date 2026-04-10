@@ -59,6 +59,9 @@ class UserHajjRegistrationSerializer(serializers.ModelSerializer):
     # step reviews for tracking pending/approved/rejected status
     step_reviews = serializers.SerializerMethodField()
 
+    # Current step status: "pending" (can fill), "awaiting_approval", "approved"
+    current_step_status = serializers.SerializerMethodField()
+
     class Meta:
         model = HajjRegistration
         fields = [
@@ -67,6 +70,7 @@ class UserHajjRegistrationSerializer(serializers.ModelSerializer):
             'visa_status',
             'visa_status_notes',
             'current_step',
+            'current_step_status',
             'current_step_rejection_reason',
             'completed_steps',
             'all_steps',
@@ -119,6 +123,31 @@ class UserHajjRegistrationSerializer(serializers.ModelSerializer):
             }
             for r in reviews
         ]
+
+    def get_current_step_status(self, obj):
+        """Returns: 'pending' (can fill), 'awaiting_approval', 'approved'"""
+        if not obj.current_step:
+            return None
+        
+        step_code = obj.current_step.code
+        
+        # Check if already in completed steps
+        if obj.completed_step_codes and step_code in obj.completed_step_codes:
+            return "approved"
+        
+        # Check step_reviews for this step
+        review = obj.step_reviews.filter(step=obj.current_step).first()
+        
+        if review:
+            if review.status == "approved":
+                return "approved"
+            elif review.status == "pending":
+                return "awaiting_approval"
+            elif review.status == "rejected":
+                return "rejected"
+        
+        # No review yet - user can fill
+        return "pending"
 
 
 # -----------------------------

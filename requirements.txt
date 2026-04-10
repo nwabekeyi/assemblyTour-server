@@ -11,3 +11,4 @@ whitenoise==6.12.0
 psycopg2-binary==2.9.10
 cryptography==44.0.2
 pytz==2025.2
+cuid==1.3.1

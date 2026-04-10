@@ -287,7 +287,7 @@ class RegistrationFormView(APIView):
             # Ensure step is marked completed
             registration.completed_steps.add(registration.current_step)
 
-            # Reset / create review as PENDING
+            # Create review as PENDING - stays on current step until admin approves
             RegistrationStepReview.objects.update_or_create(
                 registration=registration,
                 step=registration.current_step,
@@ -299,6 +299,7 @@ class RegistrationFormView(APIView):
                 }
             )
 
+            # DO NOT move to next step - wait for admin approval
             registration.save(update_fields=["updated_at"])
 
         registration.refresh_from_db()
@@ -367,20 +368,25 @@ class DocumentUploadView(APIView):
 
             registration.completed_steps.add(registration.current_step)
 
-            next_step = RegistrationStep.objects.filter(
-                order__gt=registration.current_step.order,
-                is_active=True
-            ).order_by('order').first()
+            # Create review as PENDING - wait for admin approval
+            step = registration.current_step
+            RegistrationStepReview.objects.update_or_create(
+                registration=registration,
+                step=step,
+                defaults={
+                    "status": StepReviewStatus.PENDING,
+                    "rejection_reason": None,
+                    "reviewed_by": None,
+                    "reviewed_at": None
+                }
+            )
 
-            if next_step:
-                registration.current_step = next_step
-
+            # DO NOT move to next step - wait for admin approval
             registration.save(update_fields=[
                 'passport_document',
                 'passport_document_public_id',
                 'yellow_card_document',
                 'yellow_card_document_public_id',
-                'current_step',
                 'updated_at'
             ])
 

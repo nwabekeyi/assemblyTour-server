@@ -204,19 +204,9 @@ def complete_payment_details_step(registration):
 
         registration.completed_steps.add(payment_step)
 
-        next_step = RegistrationStep.objects.filter(
-            order__gt=payment_step.order,
-            is_active=True
-        ).order_by('order').first()
-
-        if (
-            next_step
-            and registration.current_step
-            and registration.current_step.order <= payment_step.order
-        ):
-            registration.current_step = next_step
-
-        registration.save(update_fields=["current_step", "updated_at"])
+        # DO NOT move to next step - wait for admin approval
+        
+        registration.save(update_fields=["updated_at"])
 
     return payment_step
 

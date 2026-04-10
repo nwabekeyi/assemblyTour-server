@@ -56,6 +56,9 @@ class UserHajjRegistrationSerializer(serializers.ModelSerializer):
     # travel documents from admin
     travel_documents = serializers.SerializerMethodField()
 
+    # step reviews for tracking pending/approved/rejected status
+    step_reviews = serializers.SerializerMethodField()
+
     class Meta:
         model = HajjRegistration
         fields = [
@@ -72,6 +75,7 @@ class UserHajjRegistrationSerializer(serializers.ModelSerializer):
             'passport_document',
             'yellow_card_document',
             'travel_documents',
+            'step_reviews',
             'ticket_info',
             'hotel_info',
             'journey_presence_status',
@@ -104,6 +108,17 @@ class UserHajjRegistrationSerializer(serializers.ModelSerializer):
 
     def get_travel_documents(self, obj):
         return TravelDocumentSerializer(obj.travel_documents.all(), many=True).data
+
+    def get_step_reviews(self, obj):
+        reviews = obj.step_reviews.all()
+        return [
+            {
+                "step_code": r.step.code,
+                "status": r.status,
+                "rejection_reason": r.rejection_reason,
+            }
+            for r in reviews
+        ]
 
 
 # -----------------------------

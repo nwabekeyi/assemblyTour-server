@@ -100,6 +100,10 @@ class User(AbstractUser):
     # Django flags
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    can_approve_registrations = models.BooleanField(
+        default=False,
+        help_text="Can approve/reject registration steps in admin"
+    )
 
     # Avoid reverse accessor clashes
     groups = models.ManyToManyField(

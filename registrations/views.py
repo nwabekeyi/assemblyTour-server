@@ -33,6 +33,7 @@ from .serializers import (
 )
 from core.utils.api_response import api_response
 from core.services.cloudinary_service import CloudinaryService
+from core.services.email_service import notify_admins_of_registration_event
 from .services import (
     refresh_user_dashboard_stats, 
     complete_travel_documents_step,
@@ -301,6 +302,16 @@ class RegistrationFormView(APIView):
             registration.save(update_fields=["updated_at"])
 
         registration.refresh_from_db()
+        
+        # Notify admins
+        try:
+            user_name = f"{request.user.first_name or ''} {request.user.last_name or ''}".strip() or request.user.username or request.user.email
+            admin_emails = list(User.objects.filter(can_approve_registrations=True, is_active=True, email__isnull=False).values_list('email', flat=True))
+            if admin_emails:
+                notify_admins_of_registration_event(admin_emails, 'step_completed', user_name, registration.id, "Bio-Data")
+        except Exception:
+            pass
+        
         return api_response(
             success=True,
             message="Bio-data updated and submitted for admin review",
@@ -387,6 +398,16 @@ class DocumentUploadView(APIView):
                 pass
 
         registration.refresh_from_db()
+        
+        # Notify admins
+        try:
+            user_name = f"{request.user.first_name or ''} {request.user.last_name or ''}".strip() or request.user.username or request.user.email
+            admin_emails = list(User.objects.filter(can_approve_registrations=True, is_active=True, email__isnull=False).values_list('email', flat=True))
+            if admin_emails:
+                notify_admins_of_registration_event(admin_emails, 'document_upload', user_name, registration.id)
+        except Exception:
+            pass
+        
         return api_response(
             success=True,
             message="Documents uploaded. Please wait for admin review.",
@@ -608,6 +629,15 @@ class UserUploadPaymentProofView(APIView):
 
         complete_payment_details_step(registration)
         registration.refresh_from_db()
+        
+        # Notify admins
+        try:
+            user_name = f"{request.user.first_name or ''} {request.user.last_name or ''}".strip() or request.user.username or request.user.email
+            admin_emails = list(User.objects.filter(can_approve_registrations=True, is_active=True, email__isnull=False).values_list('email', flat=True))
+            if admin_emails:
+                notify_admins_of_registration_event(admin_emails, 'payment_upload', user_name, registration.id)
+        except Exception:
+            pass
 
         return api_response(
             success=True,
@@ -1210,6 +1240,18 @@ class StartNewRegistrationView(APIView):
                 )
 
         serializer = UserHajjRegistrationSerializer(result)
+        
+        # Notify admins
+        try:
+            user_name = f"{request.user.first_name or ''} {request.user.last_name or ''}".strip() or request.user.username or request.user.email
+            admin_emails = list(User.objects.filter(can_approve_registrations=True, is_active=True, email__isnull=False).values_list('email', flat=True))
+            if admin_emails:
+                first_step = RegistrationStep.objects.filter(is_active=True).order_by('order').first()
+                step_title = first_step.title if first_step else "Registration"
+                notify_admins_of_registration_event(admin_emails, 'registration', user_name, result.id, step_title)
+        except Exception:
+            pass
+        
         return api_response(
             success=True,
             message="New registration started successfully",

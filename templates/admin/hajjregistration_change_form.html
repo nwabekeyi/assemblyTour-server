@@ -36,6 +36,20 @@
             <button name="_reject_step3" type="submit" class="button default" style="background:#e53e3e; color:white; padding: 8px 16px;">Reject Documents</button>
         </div>
     {% endif %}
+
+    {# Step 4.5: Payment Details - Payment approval #}
+    {% if original.payment_details.exists %}
+        <div style="margin-top: 1em; padding: 1em; border: 2px solid #ecc94b; border-radius: 4px; background: #fffff0;">
+            <h3>Step 4.5: Approve Payment</h3>
+            <p style="color: #666; margin-bottom: 1em;">Review user's payment proof and approve or reject.</p>
+            <div style="margin-bottom: 1em;">
+                <label>Rejection Reason (if rejecting):</label>
+                <input type="text" name="reason" placeholder="Enter reason for rejection" style="width: 60%; padding: 5px;" />
+            </div>
+            <button name="_approve_payment" type="submit" class="button default" style="background:#38a169; color:white; padding: 8px 16px;">Approve Payment</button>
+            <button name="_reject_payment" type="submit" class="button default" style="background:#e53e3e; color:white; padding: 8px 16px;">Reject Payment</button>
+        </div>
+    {% endif %}
 {% endblock %}
 
 {% block inline_field_sets %}

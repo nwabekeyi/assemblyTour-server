@@ -200,6 +200,83 @@ Assembly Tour Team'''
         return False
 
 
+def send_admin_notification_email(admin_email, subject, message_body):
+    """Send email notification to admin."""
+    if not admin_email:
+        logger.warning("Cannot send admin notification: no admin email")
+        return False
+
+    try:
+        send_mail(
+            subject=subject,
+            message=message_body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[admin_email],
+            fail_silently=False,
+        )
+        logger.info(f"Admin notification sent to {admin_email}: {subject}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send admin notification: {str(e)}")
+        return False
+
+
+def notify_admins_of_registration_event(admin_emails, event_type, user_name, registration_id, step_title=""):
+    """Notify admins when user completes a registration step or uploads documents."""
+    if not admin_emails:
+        return False
+
+    event_info = {
+        'registration': {
+            'subject': f'📝 New Registration - {user_name}',
+            'body': f'''New user registration created.
+
+User: {user_name}
+Registration ID: {registration_id}
+Step: {step_title}
+
+Please review in admin dashboard.''',
+        },
+        'document_upload': {
+            'subject': f'📄 Documents Uploaded - {user_name}',
+            'body': f'''User has uploaded documents.
+
+User: {user_name}
+Registration ID: {registration_id}
+
+Please review in admin dashboard.''',
+        },
+        'payment_upload': {
+            'subject': f'💳 Payment Submitted - {user_name}',
+            'body': f'''User has submitted payment proof.
+
+User: {user_name}
+Registration ID: {registration_id}
+
+Please review and approve in admin dashboard.''',
+        },
+        'step_completed': {
+            'subject': f'✅ Step Completed - {user_name}',
+            'body': f'''User has completed a step.
+
+User: {user_name}
+Registration ID: {registration_id}
+Step: {step_title}
+
+Please review in admin dashboard.''',
+        },
+    }
+
+    event = event_info.get(event_type)
+    if not event:
+        return False
+
+    for admin_email in admin_emails:
+        send_admin_notification_email(admin_email, event['subject'], event['body'])
+
+    return True
+
+
 def send_login_credentials_email(user_email, username, temp_password, package_name):
     """Send login credentials to user after registration."""
     if not user_email:

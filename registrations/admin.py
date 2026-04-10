@@ -4,6 +4,7 @@ from django.contrib import admin, messages
 from django.core.files.storage import default_storage
 from django.utils import timezone
 from django.utils.html import format_html
+from django.contrib.auth import get_user_model
 from .models import (
     RegistrationStep,
     RegistrationStatus,
@@ -20,6 +21,13 @@ from .models import (
     PaymentDetail,
 )
 from .services import complete_travel_documents_step
+from core.services.email_service import (
+    send_step_approved_email,
+    send_step_rejected_email,
+    notify_admins_of_registration_event,
+)
+
+User = get_user_model()
 
 # -----------------------------
 # RegistrationStepAdmin
@@ -187,11 +195,11 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
     list_display = ("get_user_display", "get_current_step_display", "status", "visa_status", "updated_at")
     list_filter = ("status", "visa_status", "current_step")
     search_fields = ("user__username", "user__email", "user__phone")
-    inlines = [TravelDocumentInline, PaymentDetailInline]
+    inlines = [TravelDocumentInline]
     readonly_fields = (
         "user", "package", "current_step", "status", "completed_steps",
         "get_user_bio_summary", "get_passport_preview", "get_yellow_card_preview",
-        "get_travel_documents_list",
+        "get_travel_documents_list", "get_payment_proof_preview", "get_payment_review_status",
         "created_at", "updated_at"
     )
 
@@ -239,6 +247,23 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
                             "fields": ("get_passport_preview", "get_yellow_card_preview"),
                         }))
 
+            # Step 4.5: Payment Details
+            payment_step = RegistrationStep.objects.filter(code="payment_details").first()
+            if payment_step:
+                payment_review = obj.step_reviews.filter(step=payment_step).first()
+                payment_uploaded = obj.payment_details.exists()
+                
+                if payment_uploaded:
+                    if not payment_review or payment_review.status == "pending":
+                        fieldsets.append(("Step 4.5: Payment Details", {
+                            "fields": ("get_payment_proof_preview", "get_payment_review_status"),
+                            "description": "Payment proof uploaded. Approve or Reject below."
+                        }))
+                    elif payment_review.status == "approved":
+                        fieldsets.append(("Step 4.5: Payment Approved", {
+                            "fields": ("get_payment_proof_preview",),
+                        }))
+
             # Step 5: Visa Status
             fieldsets.append(("Step 5: Visa Status", {
                 "fields": ("visa_status", "visa_status_notes"),
@@ -265,10 +290,54 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
 
         return fieldsets
 
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        obj = self.get_object(request, object_id)
+        if obj and obj.journey_presence_status == JourneyPresenceStatus.ARRIVED:
+            extra_context = extra_context or {}
+            extra_context['show_save'] = False
+            extra_context['show_save_and_continue'] = False
+            extra_context['show_save_as_new'] = False
+        return super().change_view(request, object_id, form_url, extra_context)
+
     def save_model(self, request, obj, form, change):
+        if change and obj.journey_presence_status == JourneyPresenceStatus.ARRIVED:
+            return
         super().save_model(request, obj, form, change)
         self._handle_visa_status_transition(request, obj)
         self._handle_journey_presence_transition(request, obj)
+
+    def has_delete_permission(self, request):
+        obj = getattr(request, '_admin_obj', None)
+        if obj and obj.journey_presence_status == JourneyPresenceStatus.ARRIVED:
+            return False
+        return super().has_delete_permission(request)
+
+    # -----------------------------
+    # Payment Proof Preview
+    # -----------------------------
+    def get_payment_proof_preview(self, obj):
+        payment = obj.payment_details.first()
+        if payment and payment.file:
+            url = payment.file.url if hasattr(payment.file, 'url') else str(payment.file)
+            return format_html(
+                '<a href="{0}" target="_blank" class="button" style="background:#447e9b; color:white; padding:4px 8px;">Open Payment Proof</a>',
+                url
+            )
+        return "No payment proof uploaded"
+
+    def get_payment_review_status(self, obj):
+        payment_step = RegistrationStep.objects.filter(code="payment_details").first()
+        if not payment_step:
+            return "Step not found"
+        review = obj.step_reviews.filter(step=payment_step).first()
+        if not review:
+            return "Not submitted"
+        status_map = {
+            "pending": "Awaiting Review",
+            "approved": "Approved",
+            "rejected": f"Rejected: {review.rejection_reason or 'No reason'}"
+        }
+        return status_map.get(review.status, review.status)
 
     def _handle_visa_status_transition(self, request, obj):
         if not obj:
@@ -350,7 +419,17 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
     def get_user_bio_summary(self, obj):
         u = obj.user
         name = " ".join(filter(None, [u.first_name, u.last_name])) or u.username or u.email or u.phone
-        return format_html(
+        
+        # Profile picture button (like passport)
+        profile_html = ""
+        if u.profile_picture:
+            url = u.profile_picture
+            profile_html = format_html(
+                '<div style="margin-bottom:15px;"><a href="{}" target="_blank" class="button" style="background:#447e9b; color:white; padding:4px 8px;">Open Profile Picture</a></div>',
+                url
+            )
+        
+        bio_html = format_html(
             "<b>Name:</b> {}<br>"
             "<b>Phone:</b> {}<br>"
             "<b>Email:</b> {}<br>"
@@ -364,11 +443,26 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             u.date_of_birth or "-",
             u.address or "-"
         )
+        
+        return format_html("{}<br>{}", profile_html, bio_html)
     get_user_bio_summary.short_description = "User Bio"
 
     # -----------------------------
     # Approve / Reject Steps
     # -----------------------------
+    def _get_approval_admin_emails(self):
+        admins = User.objects.filter(can_approve_registrations=True, is_active=True)
+        return [a.email for a in admins if a.email]
+
+    def _send_user_notification(self, obj, step_title, approved=True, rejection_reason=""):
+        user = obj.user
+        if not user.email:
+            return
+        if approved:
+            send_step_approved_email(user.email, step_title, obj.id)
+        else:
+            send_step_rejected_email(user.email, step_title, obj.id)
+
     def response_change(self, request, obj):
         # Step 2 - registration_form approval - move to step 3
         if "_approve_step2" in request.POST:
@@ -380,11 +474,9 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             )
             review.approve(request.user)
             
-            # Mark step as completed
             obj.completed_steps.add(step)
             obj.status = RegistrationStatus.PENDING
             
-            # Move to next step (step 3: document_upload)
             next_step = RegistrationStep.objects.filter(
                 order__gt=step.order,
                 is_active=True
@@ -394,6 +486,7 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
                 obj.current_step = next_step
             
             obj.save()
+            self._send_user_notification(obj, step.title, approved=True)
             self.message_user(request, "Bio-data approved! User moved to document upload step.", messages.SUCCESS)
             return super().response_change(request, obj)
 
@@ -411,6 +504,7 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
                 review.reject(request.user, reason)
                 obj.status = RegistrationStatus.FAILED
                 obj.save()
+                self._send_user_notification(obj, step.title, approved=False, rejection_reason=reason)
                 self.message_user(request, f"Bio-data rejected: {reason}", messages.WARNING)
             return super().response_change(request, obj)
 
@@ -430,7 +524,6 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             obj.status = RegistrationStatus.PENDING
             obj.completed_steps.add(step)
             
-            # Move to next step
             next_step = RegistrationStep.objects.filter(
                 order__gt=step.order,
                 is_active=True
@@ -440,6 +533,7 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
                 obj.current_step = next_step
             
             obj.save()
+            self._send_user_notification(obj, step.title, approved=True)
             self.message_user(request, "Documents approved! Registration moved to next step.", messages.SUCCESS)
             return super().response_change(request, obj)
 
@@ -460,7 +554,60 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
                 review.reject(request.user, reason)
                 obj.status = RegistrationStatus.FAILED
                 obj.save()
+                self._send_user_notification(obj, step.title, approved=False, rejection_reason=reason)
                 self.message_user(request, f"Documents rejected: {reason}", messages.WARNING)
+            return super().response_change(request, obj)
+
+        # Payment Details - Approve
+        if "_approve_payment" in request.POST:
+            step = RegistrationStep.objects.filter(code="payment_details").first()
+            if not step:
+                self.message_user(request, "Payment step not found", messages.ERROR)
+                return super().response_change(request, obj)
+            
+            review, _ = RegistrationStepReview.objects.get_or_create(
+                registration=obj,
+                step=step,
+                defaults={"reviewed_by": request.user}
+            )
+            review.approve(request.user)
+            obj.status = RegistrationStatus.PENDING
+            
+            if not obj.completed_steps.filter(pk=step.pk).exists():
+                obj.completed_steps.add(step)
+            
+            next_step = RegistrationStep.objects.filter(
+                order__gt=step.order,
+                is_active=True
+            ).order_by('order').first()
+            
+            if next_step:
+                obj.current_step = next_step
+            
+            obj.save()
+            self._send_user_notification(obj, step.title, approved=True)
+            self.message_user(request, "Payment approved! Registration moved to next step.", messages.SUCCESS)
+            return super().response_change(request, obj)
+
+        # Payment Details - Reject
+        if "_reject_payment" in request.POST:
+            reason = request.POST.get("reason", "").strip()
+            if not reason:
+                self.message_user(request, "Rejection reason is required.", messages.ERROR)
+                return super().response_change(request, obj)
+            
+            step = RegistrationStep.objects.filter(code="payment_details").first()
+            if step:
+                review, _ = RegistrationStepReview.objects.get_or_create(
+                    registration=obj,
+                    step=step,
+                    defaults={"reviewed_by": request.user}
+                )
+                review.reject(request.user, reason)
+                obj.status = RegistrationStatus.FAILED
+                obj.save()
+                self._send_user_notification(obj, step.title, approved=False, rejection_reason=reason)
+                self.message_user(request, f"Payment rejected: {reason}", messages.WARNING)
             return super().response_change(request, obj)
 
         return super().response_change(request, obj)

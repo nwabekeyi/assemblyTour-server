@@ -13,15 +13,25 @@ admin.site.index_title = "Welcome to Assembly Tours Administration"
 class CustomUserAdmin(UserAdmin):
     model = User
 
+    def get_profile_picture_link(self, obj):
+        """Return profile picture as clickable button."""
+        if obj.profile_picture:
+            return format_html(
+                '<a href="{}" target="_blank" class="button" style="background:#447e9b; color:white; padding:4px 8px;">Open Profile Picture</a>',
+                obj.profile_picture
+            )
+        return "No profile picture"
+
     # Fieldsets for viewing/editing a user
     fieldsets = (
         (None, {'fields': ('email', 'username', 'password')}),
         ('Personal Info', {'fields': (
-            'first_name', 'last_name', 'profile_picture', 'phone', 'date_of_birth',
+            'first_name', 'last_name', 'phone', 'date_of_birth',
             'gender', 'nationality', 'state_of_origin', 'passport_number', 'passport_expiry',
             'address', 'emergency_contact_name', 'emergency_contact_phone'
         )}),
-        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
+        ('Profile', {'fields': ('get_profile_picture_link',)}),
+        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'can_approve_registrations', 'groups', 'user_permissions')}),
         ('Important Dates', {'fields': ('last_login', 'date_joined')}),
     )
 
@@ -29,17 +39,17 @@ class CustomUserAdmin(UserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'username', 'phone', 'password1', 'password2', 'is_active', 'is_staff', 'is_superuser')
+            'fields': ('email', 'username', 'phone', 'password1', 'password2', 'is_active', 'is_staff', 'is_superuser', 'can_approve_registrations')
         }),
     )
 
-    # Make fields read-only (except ones you want editable)
+    # Make fields read-only
     readonly_fields = (
         'email', 'first_name', 'last_name', 'profile_picture', 'phone', 'date_of_birth', 'gender',
         'nationality', 'state_of_origin', 'passport_number', 'passport_expiry',
         'address', 'emergency_contact_name', 'emergency_contact_phone',
         'is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions',
-        'last_login', 'date_joined'
+        'last_login', 'date_joined', 'get_profile_picture_link'
     )
 
     # Columns displayed in the user list
@@ -59,7 +69,6 @@ class CustomUserAdmin(UserAdmin):
     def get_username_safe(self, obj):
         """Return username or placeholder if null."""
         return obj.username or "(no username)"
-    get_username_safe.short_description = "Username"
 
     def get_profile_picture_safe(self, obj):
         """Return profile picture image or placeholder if null."""
@@ -69,4 +78,3 @@ class CustomUserAdmin(UserAdmin):
                 obj.profile_picture, obj.profile_picture
             )
         return "(no profile picture)"
-    get_profile_picture_safe.short_description = "Profile Picture"

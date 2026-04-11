@@ -3,6 +3,64 @@
 
 {% block extrahead %}
 {{ block.super }}
+<script>
+(function() {
+    'use strict';
+    
+    function toggleFieldsets() {
+        // Find all travel document formsets
+        var formsets = document.querySelectorAll('.inline-group');
+        
+        formsets.forEach(function(group) {
+            // Check if this is a travel document group
+            if (!group.querySelector('select[name$="doc_type"]')) return;
+            
+            // Find all form elements within this group
+            var forms = group.querySelectorAll('.formset');
+            
+            forms.forEach(function(form) {
+                var select = form.querySelector('select[name$="doc_type"]');
+                if (!select) return;
+                
+                var docType = select.value;
+                var fieldsets = form.querySelectorAll('fieldset');
+                
+                fieldsets.forEach(function(fs) {
+                    var legend = fs.querySelector('legend');
+                    if (!legend) return;
+                    
+                    var text = legend.textContent || legend.innerText;
+                    
+                    if (text.indexOf('Visa Details') > -1) {
+                        fs.style.display = (docType === 'visa') ? 'block' : 'none';
+                    } else if (text.indexOf('Flight') > -1) {
+                        fs.style.display = (docType === 'ticket') ? 'block' : 'none';
+                    } else if (text.indexOf('Hotel') > -1) {
+                        fs.style.display = (docType === 'hotel_voucher') ? 'block' : 'none';
+                    }
+                });
+            });
+        });
+    }
+    
+    // Run on page load
+    setTimeout(toggleFieldsets, 100);
+    
+    // Run when selects change
+    document.addEventListener('change', function(e) {
+        if (e.target.name && e.target.name.indexOf('doc_type') > -1) {
+            setTimeout(toggleFieldsets, 50);
+        }
+    });
+    
+    // Also observe for dynamically added forms
+    var observer = new MutationObserver(function() {
+        toggleFieldsets();
+    });
+    
+    observer.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
 <style>
 #cancel-modal {
     display: none;

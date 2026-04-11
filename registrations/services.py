@@ -117,6 +117,9 @@ def complete_travel_documents_step(registration):
         print("complete_travel_documents_step: travel_step not found")
         return None
 
+    # Refresh to get latest docs
+    registration.refresh_from_db()
+    
     print(f"complete_travel_documents_step: checking for registration {registration.id}, current_step: {registration.current_step}")
 
     required_types = ["visa", "ticket", "hotel_voucher"]
@@ -328,11 +331,8 @@ def start_new_registration(user, package):
         status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]
     ).first()
 
-    # Find the payment_details step to start from (skip account_setup, registration_form, document_upload for returning users)
+    # Find the payment_details step to start from (only account_setup and registration_form auto-complete for returning users)
     payment_step = RegistrationStep.objects.filter(code="payment_details", is_active=True).first()
-    if not payment_step:
-        # Fall back to first step if payment_details doesn't exist
-        payment_step = RegistrationStep.objects.filter(is_active=True).order_by('order').first()
     
     if not payment_step:
         return {"error": "no_steps"}
@@ -345,17 +345,21 @@ def start_new_registration(user, package):
             status=RegistrationStatus.PENDING,
         )
         
-        # Copy documents from old registration if exists
+        # Only auto-complete account_setup and registration_form for returning users
+        account_setup = RegistrationStep.objects.filter(code="account_setup", is_active=True).first()
+        registration_form = RegistrationStep.objects.filter(code="registration_form", is_active=True).first()
+        
+        if account_setup:
+            registration.completed_steps.add(account_setup)
+        if registration_form:
+            registration.completed_steps.add(registration_form)
+        
+        # Copy documents from old registration as pre-filled (user can keep or re-upload)
         if old_registration:
             registration.passport_document = old_registration.passport_document
             registration.passport_document_public_id = old_registration.passport_document_public_id
             registration.yellow_card_document = old_registration.yellow_card_document
             registration.yellow_card_document_public_id = old_registration.yellow_card_document_public_id
             registration.save(update_fields=['passport_document', 'passport_document_public_id', 'yellow_card_document', 'yellow_card_document_public_id'])
-            
-            # Copy completed steps from old registration (except document_upload which we'll re-do)
-            old_completed = old_registration.completed_steps.exclude(code__in=['document_upload'])
-            for step in old_completed:
-                registration.completed_steps.add(step)
 
     return registration

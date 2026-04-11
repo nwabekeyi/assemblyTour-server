@@ -144,7 +144,6 @@ class TravelDocumentForm(forms.ModelForm):
 class TravelDocumentInline(admin.StackedInline):
     model = TravelDocument
     extra = 0
-    max_num = 3
     form = TravelDocumentForm
     readonly_fields = ("uploaded_by", "uploaded_at")
     min_num = 0
@@ -181,14 +180,14 @@ class TravelDocumentInline(admin.StackedInline):
         return 1
 
     def get_max_num(self, request, obj=None):
-        return 0
+        return None
 
     def get_fieldsets(self, request, obj=None):
         return [
             (None, {'fields': ('doc_type', 'title', 'file', 'description')}),
-            ('Visa Details', {'fields': ('visa_number', 'visa_type', 'visa_issue_date', 'visa_expiry_date', 'visa_country', 'visa_port_of_entry')}),
-            ('Flight/Ticket Details', {'fields': ('airline_name', 'flight_number', 'departure_airport', 'arrival_airport', 'departure_date', 'departure_time', 'arrival_date', 'arrival_time', 'seat_number', 'booking_reference')}),
-            ('Hotel Details', {'fields': ('hotel_name', 'hotel_address', 'room_type', 'room_number', 'check_in_date', 'check_in_time', 'check_out_date', 'check_out_time', 'number_of_nights')}),
+            ('Visa Details (fill if visa)', {'fields': ('visa_number', 'visa_type', 'visa_issue_date', 'visa_expiry_date', 'visa_country', 'visa_port_of_entry'), 'classes': ('collapse',)}),
+            ('Flight Details (fill if ticket)', {'fields': ('airline_name', 'flight_number', 'departure_airport', 'arrival_airport', 'departure_date', 'departure_time', 'arrival_date', 'arrival_time', 'seat_number', 'booking_reference'), 'classes': ('collapse',)}),
+            ('Hotel Details (fill if hotel)', {'fields': ('hotel_name', 'hotel_address', 'room_type', 'room_number', 'check_in_date', 'check_in_time', 'check_out_date', 'check_out_time', 'number_of_nights'), 'classes': ('collapse',)}),
             ('Metadata', {'fields': ('uploaded_by', 'uploaded_at')})
         ]
 
@@ -626,6 +625,9 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
         if not step:
             return
 
+        # Refresh from DB to get latest travel documents
+        obj.refresh_from_db()
+        
         required_types = ["visa", "ticket", "hotel_voucher"]
         uploaded_types = set(obj.travel_documents.values_list("doc_type", flat=True))
         
@@ -648,6 +650,7 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             obj.current_step = next_step
 
         obj.save(update_fields=["current_step", "updated_at"])
+        print(f"HajjRegistrationAdmin: Travel docs complete, moved to {next_step}")
         self.message_user(
             request,
             "Travel documents completed! Registration advanced to the next step.",

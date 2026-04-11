@@ -239,8 +239,8 @@ def approve_payment_step(registration, admin_user=None):
     if registration.completed_steps.filter(pk=payment_step.pk).exists():
         next_step = RegistrationStep.objects.filter(
             order__gt=payment_step.order,
-            is_active=True
-        ).order_by('order').first()
+            is_active=True,
+        ).exclude(code="payment_review").order_by('order').first()
 
         if (
             next_step

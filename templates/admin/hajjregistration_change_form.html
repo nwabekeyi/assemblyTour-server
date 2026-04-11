@@ -37,15 +37,6 @@
         </div>
     {% endif %}
 
-    {# Step 3: Payment Review (after payment approved, move to document upload) #}
-    {% if original.current_step.code == "payment_review" %}
-        <div style="margin-top: 1em; padding: 1em; border: 2px solid #ecc94b; border-radius: 4px; background: #fffff0;">
-            <h3>Step 3: Approve Payment Review</h3>
-            <p style="color: #666; margin-bottom: 1em;">Payment has been uploaded. Approve to move user to document upload step.</p>
-            <input type="submit" name="_approve_payment_review" value="Approve & Continue" class="button default" style="background:#38a169; color:white; padding: 8px 16px;" />
-        </div>
-    {% endif %}
-
     {# Step 4.5: Payment Details - Payment approval #}
     {% if original.payment_details.exists and original.current_step.code == "payment_details" %}
         <div style="margin-top: 1em; padding: 1em; border: 2px solid #ecc94b; border-radius: 4px; background: #fffff0;">

@@ -482,8 +482,8 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             
             next_step = RegistrationStep.objects.filter(
                 order__gt=step.order,
-                is_active=True
-            ).order_by('order').first()
+                is_active=True,
+            ).exclude(code="payment_review").order_by('order').first()
             
             if next_step:
                 obj.current_step = next_step
@@ -529,8 +529,8 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             
             next_step = RegistrationStep.objects.filter(
                 order__gt=step.order,
-                is_active=True
-            ).order_by('order').first()
+                is_active=True,
+            ).exclude(code="payment_review").order_by('order').first()
             
             if next_step:
                 obj.current_step = next_step
@@ -581,8 +581,8 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             
             next_step = RegistrationStep.objects.filter(
                 order__gt=step.order,
-                is_active=True
-            ).order_by('order').first()
+                is_active=True,
+            ).exclude(code="payment_review").order_by('order').first()
             
             if next_step:
                 obj.current_step = next_step
@@ -590,47 +590,6 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             obj.save()
             self._send_user_notification(obj, step.title, approved=True)
             self.message_user(request, "Payment approved! Registration moved to next step.", messages.SUCCESS)
-            return super().response_change(request, obj)
-
-        # Payment Review - Approve to move to document_upload
-        if "_approve_payment_review" in request.POST:
-            step = RegistrationStep.objects.filter(code="payment_review").first()
-            if not step:
-                self.message_user(request, "Payment review step not found", messages.ERROR)
-                return super().response_change(request, obj)
-            
-            # Mark payment_review as complete
-            if not obj.completed_steps.filter(pk=step.pk).exists():
-                obj.completed_steps.add(step)
-            
-            # Create or update review
-            review, _ = RegistrationStepReview.objects.get_or_create(
-                registration=obj,
-                step=step,
-                defaults={
-                    "status": StepReviewStatus.APPROVED,
-                    "reviewed_by": request.user,
-                    "reviewed_at": timezone.now()
-                }
-            )
-            if review.status != StepReviewStatus.APPROVED:
-                review.status = StepReviewStatus.APPROVED
-                review.reviewed_by = request.user
-                review.reviewed_at = timezone.now()
-                review.save(update_fields=['status', 'reviewed_by', 'reviewed_at'])
-            
-            # Move to next step (document_upload)
-            next_step = RegistrationStep.objects.filter(
-                order__gt=step.order,
-                is_active=True
-            ).order_by('order').first()
-            
-            if next_step:
-                obj.current_step = next_step
-            
-            obj.save()
-            self._send_user_notification(obj, step.title, approved=True)
-            self.message_user(request, "Payment review approved! User moved to document upload step.", messages.SUCCESS)
             return super().response_change(request, obj)
 
         # Payment Details - Reject

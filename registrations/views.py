@@ -4,7 +4,7 @@ from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 from .models import (
     HajjRegistration,
@@ -29,6 +29,7 @@ from .serializers import (
     TravelDocumentUploadSerializer,
     SupportTicketSerializer,
     SupportTicketReplySerializer,
+    SupportTicketCreateSerializer,
     ManasikGuidanceSerializer,
     EmergencyContactSerializer,
 )
@@ -71,7 +72,9 @@ class MyHajjRegistrationView(APIView):
                 'current_step', 'package'
             ).prefetch_related(
                 'completed_steps'
-            ).get(user=request.user)
+            ).exclude(
+                status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]
+            ).exclude(status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]).get(user=request.user)
 
             serializer = UserHajjRegistrationSerializer(registration)
 
@@ -84,11 +87,10 @@ class MyHajjRegistrationView(APIView):
 
         except HajjRegistration.DoesNotExist:
             return api_response(
-                success=False,
-                message="You have not started a hajj registration yet",
+                success=True,
+                message="No active registration",
                 data=None,
-                errors={"registration": "Not found"},
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=status.HTTP_200_OK,
             )
 
 
@@ -100,7 +102,7 @@ class AccountSetupView(APIView):
         try:
             registration = HajjRegistration.objects.select_related(
                 'current_step'
-            ).get(user=request.user)
+            ).exclude(status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]).get(user=request.user)
         except HajjRegistration.DoesNotExist:
             return api_response(success=False, message="Registration not found", status_code=404)
 
@@ -204,7 +206,7 @@ class RegistrationFormView(APIView):
         try:
             registration = HajjRegistration.objects.select_related(
                 'current_step'
-            ).get(user=request.user)
+            ).exclude(status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]).get(user=request.user)
         except HajjRegistration.DoesNotExist:
             return api_response(
                 success=False,
@@ -357,7 +359,7 @@ class DocumentUploadView(APIView):
 
     def post(self, request):
         try:
-            registration = HajjRegistration.objects.select_related('current_step').get(user=request.user)
+            registration = HajjRegistration.objects.select_related('current_step').exclude(status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]).get(user=request.user)
         except HajjRegistration.DoesNotExist:
             return api_response(success=False, message="Registration not found", status_code=404)
 
@@ -473,8 +475,8 @@ class AdminApproveDocumentReviewView(APIView):
         except HajjRegistration.DoesNotExist:
             return api_response(success=False, message="Registration not found", status_code=404)
 
-        if registration.current_step.code != "document_review":
-            return api_response(success=False, message="Registration not at document review step", status_code=400)
+        if registration.current_step.code != "document_upload":
+            return api_response(success=False, message="Registration not at document upload step", status_code=400)
 
         step = registration.current_step
 
@@ -559,7 +561,43 @@ class AdminUploadTravelDocumentView(APIView):
             uploaded_by=request.user
         )
 
+        import json
+        ticket_doc = registration.travel_documents.filter(doc_type='ticket').first()
+        hotel_doc = registration.travel_documents.filter(doc_type='hotel_voucher').first()
+        
+        if ticket_doc:
+            ticket_info = {
+                "airline_name": ticket_doc.airline_name,
+                "flight_number": ticket_doc.flight_number,
+                "departure_airport": ticket_doc.departure_airport,
+                "arrival_airport": ticket_doc.arrival_airport,
+                "departure_date": str(ticket_doc.departure_date) if ticket_doc.departure_date else None,
+                "arrival_date": str(ticket_doc.arrival_date) if ticket_doc.arrival_date else None,
+                "seat_number": ticket_doc.seat_number,
+                "booking_reference": ticket_doc.booking_reference,
+            }
+            registration.ticket_info = json.dumps(ticket_info)
+        
+        if hotel_doc:
+            hotel_info = {
+                "hotel_name": hotel_doc.hotel_name,
+                "hotel_address": hotel_doc.hotel_address,
+                "room_type": hotel_doc.room_type,
+                "room_number": hotel_doc.room_number,
+                "check_in_date": str(hotel_doc.check_in_date) if hotel_doc.check_in_date else None,
+                "check_out_date": str(hotel_doc.check_out_date) if hotel_doc.check_out_date else None,
+                "number_of_nights": hotel_doc.number_of_nights,
+            }
+            registration.hotel_info = json.dumps(hotel_info)
+        
+        if ticket_doc or hotel_doc:
+            registration.save(update_fields=['ticket_info', 'hotel_info'])
+
+        print(f"DEBUG: About to call complete_travel_documents_step for registration {registration.id}. Doc count: {registration.travel_documents.count()}")
+        
         result = complete_travel_documents_step(registration)
+        
+        print(f"DEBUG: complete_travel_documents_step result: {result}")
         
         if result and isinstance(result, dict) and result.get("error"):
             missing = result.get("missing", [])
@@ -571,6 +609,7 @@ class AdminUploadTravelDocumentView(APIView):
             )
         
         registration.refresh_from_db(fields=['current_step', 'updated_at'])
+        print(f"DEBUG: After refresh, current_step: {registration.current_step}")
 
         return api_response(
             success=True,
@@ -641,9 +680,9 @@ class UserUploadPaymentProofView(APIView):
 
     def post(self, request):
         try:
-            registration = HajjRegistration.objects.get(user=request.user)
+            registration = HajjRegistration.objects.exclude(status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]).get(user=request.user)
         except HajjRegistration.DoesNotExist:
-            return api_response(success=False, message="No registration found", status_code=404)
+            return api_response(success=False, message="No active registration found", status_code=404)
 
         title = request.data.get("title", "Payment Proof")
         file = request.FILES.get("file")
@@ -688,9 +727,9 @@ class MyTravelDocumentsView(APIView):
 
     def get(self, request):
         try:
-            registration = HajjRegistration.objects.get(user=request.user)
+            registration = HajjRegistration.objects.exclude(status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]).get(user=request.user)
         except HajjRegistration.DoesNotExist:
-            return api_response(success=False, message="Registration not found", status_code=404)
+            return api_response(success=False, message="No active registration found", status_code=404)
 
         travel_docs = registration.travel_documents.all()
         serializer = TravelDocumentSerializer(travel_docs, many=True)
@@ -771,7 +810,7 @@ class MySupportTicketsView(APIView):
 
 class CreateSupportTicketView(APIView):
     permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def post(self, request):
         serializer = SupportTicketCreateSerializer(data=request.data)

@@ -272,7 +272,21 @@ class TravelDocumentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TravelDocument
-        fields = ['id', 'doc_type', 'title', 'file', 'description', 'uploaded_by_name', 'uploaded_at']
+        fields = [
+            'id', 'doc_type', 'title', 'file', 'description', 
+            'uploaded_by_name', 'uploaded_at',
+            # Visa fields
+            'visa_number', 'visa_type', 'visa_issue_date', 'visa_expiry_date', 
+            'visa_country', 'visa_port_of_entry',
+            # Flight/Ticket fields
+            'airline_name', 'flight_number', 'departure_airport', 'arrival_airport',
+            'departure_date', 'departure_time', 'arrival_date', 'arrival_time',
+            'seat_number', 'booking_reference',
+            # Hotel fields
+            'hotel_name', 'hotel_address', 'room_type', 'room_number',
+            'check_in_date', 'check_in_time', 'check_out_date', 'check_out_time',
+            'number_of_nights',
+        ]
         read_only_fields = ['id', 'uploaded_by_name', 'uploaded_at']
 
     def get_uploaded_by_name(self, obj):
@@ -319,11 +333,12 @@ class SupportTicketSerializer(serializers.ModelSerializer):
 
 class SupportTicketCreateSerializer(serializers.Serializer):
     category = serializers.ChoiceField(choices=[
-        ('registration', 'Registration'),
-        ('payment', 'Payment'),
-        ('documents', 'Documents'),
-        ('travel', 'Travel Info'),
-        ('visa', 'Visa'),
+        ('general', 'General Inquiry'),
+        ('payment', 'Payment Issue'),
+        ('document', 'Document Issue'),
+        ('visa', 'Visa Inquiry'),
+        ('package', 'Package/Booking'),
+        ('technical', 'Technical Issue'),
         ('other', 'Other'),
     ])
     registration_id = serializers.IntegerField(required=False, allow_null=True)

@@ -1,6 +1,53 @@
 {% extends "admin/change_form.html" %}
 {% load static %}
 
+{% block extrahead %}
+{{ block.super }}
+<style>
+#cancel-modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+}
+#cancel-modal.show { display: flex; }
+.cancel-modal-content {
+    background: white;
+    padding: 24px;
+    border-radius: 8px;
+    max-width: 500px;
+    width: 90%;
+}
+.cancel-modal-content h3 { margin-top: 0; }
+.cancel-modal-content textarea {
+    width: 100%;
+    min-height: 100px;
+    margin: 10px 0;
+    padding: 8px;
+}
+.cancel-buttons { display: flex; gap: 10px; justify-content: flex-end; }
+</style>
+<script>
+function showCancelModal() {
+    document.getElementById('cancel-modal').classList.add('show');
+}
+function hideCancelModal() {
+    document.getElementById('cancel-modal').classList.remove('show');
+}
+function submitCancel() {
+    var reason = document.getElementById('cancellation_reason').value.trim();
+    if (!reason) {
+        alert('Cancellation reason is required');
+        return;
+    }
+    document.getElementById('cancel-form').submit();
+}
+</script>
+{% endblock %}
+
 {% block after_field_sets %}
     {% if not original.passport_document or not original.yellow_card_document %}
         <div style="margin: 1em 0; padding: 1em; border-radius: 12px; background: #fdf2f8; border: 1px solid #f472b6;">
@@ -9,11 +56,34 @@
         </div>
     {% endif %}
 
+    {# Cancel modal #}
+    <div id="cancel-modal">
+        <div class="cancel-modal-content">
+            <h3>Cancel Registration</h3>
+            <p>Please provide a reason for cancellation. This is required.</p>
+            <form method="post" id="cancel-form" action=".">
+                {% csrf_token %}
+                <input type="hidden" name="_cancel_registration" value="1" />
+                <textarea id="cancellation_reason" name="cancellation_reason" placeholder="Enter cancellation reason..." required></textarea>
+                <div class="cancel-buttons">
+                    <button type="button" onclick="hideCancelModal()" style="background:#e5e7eb; padding:8px 16px; border:none; border-radius:4px; cursor:pointer;">Cancel</button>
+                    <button type="button" onclick="submitCancel()" style="background:#dc2626; color:white; padding:8px 16px; border:none; border-radius:4px; cursor:pointer;">Confirm Cancellation</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     {# Step 2: registration_form - User bio approval #}
     {% if original.current_step.code == "registration_form" %}
         <div style="margin-top: 1em; padding: 1em; border: 2px solid #ecc94b; border-radius: 4px; background: #fffff0;">
             <h3>Step 2: Approve Bio-Data</h3>
-            <p style="color: #666; margin-bottom: 1em;">Review user's personal information and approve or reject.</p>
+            <p style="color: #666; margin-bottom: 1em;">Review user's personal information and profile picture.</p>
+            {% if original.user.profile_picture %}
+                <div style="margin-bottom: 1em;">
+                    <strong>Profile Picture:</strong><br>
+                    <img src="{{ original.user.profile_picture }}" alt="Profile Picture" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 2px solid #ddd;">
+                </div>
+            {% endif %}
             <div style="margin-bottom: 1em;">
                 <label>Rejection Reason (if rejecting):</label>
                 <input type="text" name="reason" placeholder="Enter reason for rejection" style="width: 60%; padding: 5px;" />
@@ -23,24 +93,24 @@
         </div>
     {% endif %}
 
-    {# Step 4: document_review - Document approval #}
-    {% if original.current_step.code == "document_review" %}
+    {# Step 3: Document Upload - Approve to move to visa_status #}
+    {% if original.current_step.code == "document_upload" and original.passport_document and original.yellow_card_document %}
         <div style="margin-top: 1em; padding: 1em; border: 2px solid #ecc94b; border-radius: 4px; background: #fffff0;">
-            <h3>Step 4: Approve Documents</h3>
-            <p style="color: #666; margin-bottom: 1em;">Review user's passport and yellow card documents.</p>
+            <h3>Step 3: Approve Documents</h3>
+            <p style="color: #666; margin-bottom: 1em;">User has uploaded passport and yellow card. Review and approve to proceed.</p>
             <div style="margin-bottom: 1em;">
                 <label>Rejection Reason (if rejecting):</label>
                 <input type="text" name="reason" placeholder="Enter reason for rejection" style="width: 60%; padding: 5px;" />
             </div>
-            <input type="submit" name="_approve_step3" value="Approve Documents" class="button default" style="background:#38a169; color:white; padding: 8px 16px;" />
-            <input type="submit" name="_reject_step3" value="Reject Documents" class="button default" style="background:#e53e3e; color:white; padding: 8px 16px;" />
+            <input type="submit" name="_approve_document_upload" value="Approve Documents" class="button default" style="background:#38a169; color:white; padding: 8px 16px;" />
+            <input type="submit" name="_reject_document_upload" value="Reject Documents" class="button default" style="background:#e53e3e; color:white; padding: 8px 16px;" />
         </div>
     {% endif %}
 
     {# Step 4.5: Payment Details - Payment approval #}
     {% if original.payment_details.exists and original.current_step.code == "payment_details" %}
         <div style="margin-top: 1em; padding: 1em; border: 2px solid #ecc94b; border-radius: 4px; background: #fffff0;">
-            <h3>Step 4.5: Approve Payment</h3>
+            <h3>Step 4. Approve Payment</h3>
             <p style="color: #666; margin-bottom: 1em;">Review user's payment proof and approve or reject.</p>
             <div style="margin-bottom: 1em;">
                 <label>Rejection Reason (if rejecting):</label>
@@ -50,8 +120,16 @@
             <input type="submit" name="_reject_payment" value="Reject Payment" class="button default" style="background:#e53e3e; color:white; padding: 8px 16px;" />
         </div>
     {% endif %}
+    
 {% endblock %}
 
 {% block inline_field_sets %}
     {{ block.super }}
+{% endblock %}
+
+{% block submit_row %}
+    {{ block.super }}
+    {% if can_cancel and original.journey_presence_status != 'arrived' and original.journey_presence_status != 'in_mecca' %}
+        <li><input type="button" onclick="showCancelModal()" value="Cancel Registration" style="background:#dc2626; color:white; padding:8px 12px; border:none; border-radius:4px; cursor:pointer;" /></li>
+    {% endif %}
 {% endblock %}

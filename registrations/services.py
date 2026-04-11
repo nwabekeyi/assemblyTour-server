@@ -1,4 +1,5 @@
 from datetime import timedelta
+import logging
 import threading
 
 from django.contrib.auth import get_user_model
@@ -14,6 +15,8 @@ from .models import (
     JourneyPresenceStatus,
     UserDashboardStats,
 )
+
+logger = logging.getLogger(__name__)
 
 
 User = get_user_model()
@@ -106,24 +109,26 @@ def schedule_midnight_refresh():
 def complete_travel_documents_step(registration):
     """Mark the travel documents step as completed and advance to the next step."""
     if not registration:
+        print("complete_travel_documents_step: registration is None")
         return None
 
     travel_step = RegistrationStep.objects.filter(code="travel_documents").first()
     if not travel_step:
+        print("complete_travel_documents_step: travel_step not found")
         return None
+
+    print(f"complete_travel_documents_step: checking for registration {registration.id}, current_step: {registration.current_step}")
 
     required_types = ["visa", "ticket", "hotel_voucher"]
     uploaded_docs = registration.travel_documents.all()
     uploaded_types = set(uploaded_docs.values_list("doc_type", flat=True))
     
+    print(f"complete_travel_documents_step: uploaded_types: {uploaded_types}")
+    
     missing_types = []
     for doc_type in required_types:
         if doc_type not in uploaded_types:
             missing_types.append(doc_type)
-        else:
-            doc = uploaded_docs.filter(doc_type=doc_type).first()
-            if doc and (not doc.description or not doc.description.strip()):
-                missing_types.append(doc_type)
     
     if missing_types:
         missing_labels = {
@@ -131,6 +136,7 @@ def complete_travel_documents_step(registration):
             "ticket": "Flight Ticket", 
             "hotel_voucher": "Hotel Voucher"
         }
+        print(f"complete_travel_documents_step: missing types: {missing_types}")
         return {"error": True, "missing": [missing_labels.get(t, t) for t in missing_types]}
 
     review, created = RegistrationStepReview.objects.get_or_create(
@@ -149,6 +155,7 @@ def complete_travel_documents_step(registration):
         review.save(update_fields=["status", "rejection_reason", "reviewed_at"])
 
     if registration.completed_steps.filter(pk=travel_step.pk).exists():
+        print(f"complete_travel_documents_step: travel_step already in completed_steps")
         return travel_step
 
     registration.completed_steps.add(travel_step)
@@ -158,12 +165,17 @@ def complete_travel_documents_step(registration):
         is_active=True
     ).order_by('order').first()
 
+    print(f"complete_travel_documents_step: next_step: {next_step}, current_step: {registration.current_step}, travel_step.order: {travel_step.order}")
+
     if (
         next_step
         and registration.current_step
         and registration.current_step.order <= travel_step.order
     ):
         registration.current_step = next_step
+        print(f"complete_travel_documents_step: Setting current_step to {next_step}")
+    else:
+        print(f"complete_travel_documents_step: NOT setting current_step. next_step={next_step}, current_step={registration.current_step}")
 
     registration.save(update_fields=["current_step", "updated_at"])
 
@@ -240,7 +252,7 @@ def approve_payment_step(registration, admin_user=None):
         next_step = RegistrationStep.objects.filter(
             order__gt=payment_step.order,
             is_active=True,
-        ).exclude(code="payment_review").order_by('order').first()
+        ).order_by('order').first()
 
         if (
             next_step
@@ -300,7 +312,7 @@ def start_new_registration(user, package):
     if not user or not package:
         return None
 
-    # Check if user already has an active registration
+    # Return error if user already has an active registration (not completed/failed)
     existing = HajjRegistration.objects.filter(
         user=user
     ).exclude(
@@ -310,17 +322,40 @@ def start_new_registration(user, package):
     if existing:
         return {"error": "active_exists", "registration": existing}
 
-    # Get the first active step
-    first_step = RegistrationStep.objects.filter(is_active=True).order_by('order').first()
-    if not first_step:
+    # Get user's old completed/failed registration to copy details from
+    old_registration = HajjRegistration.objects.filter(
+        user=user,
+        status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]
+    ).first()
+
+    # Find the payment_details step to start from (skip account_setup, registration_form, document_upload for returning users)
+    payment_step = RegistrationStep.objects.filter(code="payment_details", is_active=True).first()
+    if not payment_step:
+        # Fall back to first step if payment_details doesn't exist
+        payment_step = RegistrationStep.objects.filter(is_active=True).order_by('order').first()
+    
+    if not payment_step:
         return {"error": "no_steps"}
 
     with transaction.atomic():
         registration = HajjRegistration.objects.create(
             user=user,
             package=package,
-            current_step=first_step,
-            status=RegistrationStatus.NOT_STARTED,
+            current_step=payment_step,
+            status=RegistrationStatus.PENDING,
         )
+        
+        # Copy documents from old registration if exists
+        if old_registration:
+            registration.passport_document = old_registration.passport_document
+            registration.passport_document_public_id = old_registration.passport_document_public_id
+            registration.yellow_card_document = old_registration.yellow_card_document
+            registration.yellow_card_document_public_id = old_registration.yellow_card_document_public_id
+            registration.save(update_fields=['passport_document', 'passport_document_public_id', 'yellow_card_document', 'yellow_card_document_public_id'])
+            
+            # Copy completed steps from old registration (except document_upload which we'll re-do)
+            old_completed = old_registration.completed_steps.exclude(code__in=['document_upload'])
+            for step in old_completed:
+                registration.completed_steps.add(step)
 
     return registration

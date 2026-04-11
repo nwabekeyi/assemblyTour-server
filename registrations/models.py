@@ -71,7 +71,7 @@ class JourneyPresenceStatus(models.TextChoices):
 
 
 class HajjRegistration(models.Model):
-    user = models.OneToOneField(
+    user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="hajj_registration"
@@ -117,6 +117,15 @@ class HajjRegistration(models.Model):
         help_text="Tracks traveler presence during and after the journey"
     )
     journey_presence_notes = models.TextField(blank=True, null=True)
+    cancellation_reason = models.TextField(blank=True, null=True, help_text="Reason for cancellation (required)")
+    cancelled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="cancelled_registrations",
+        help_text="Admin who cancelled this registration"
+    )
+    cancelled_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -164,12 +173,62 @@ class TravelDocument(models.Model):
         related_name="uploaded_travel_documents"
     )
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    # Visa specific fields (required when doc_type is visa)
+    visa_number = models.CharField(max_length=50, blank=True, null=True)
+    visa_type = models.CharField(max_length=50, blank=True, null=True)
+    visa_issue_date = models.DateField(blank=True, null=True)
+    visa_expiry_date = models.DateField(blank=True, null=True)
+    visa_country = models.CharField(max_length=100, blank=True, null=True)
+    visa_port_of_entry = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Flight/Ticket specific fields (required when doc_type is ticket)
+    airline_name = models.CharField(max_length=100, blank=True, null=True)
+    flight_number = models.CharField(max_length=50, blank=True, null=True)
+    departure_airport = models.CharField(max_length=100, blank=True, null=True)
+    arrival_airport = models.CharField(max_length=100, blank=True, null=True)
+    departure_date = models.DateField(blank=True, null=True)
+    departure_time = models.TimeField(blank=True, null=True)
+    arrival_date = models.DateField(blank=True, null=True)
+    arrival_time = models.TimeField(blank=True, null=True)
+    seat_number = models.CharField(max_length=20, blank=True, null=True)
+    booking_reference = models.CharField(max_length=50, blank=True, null=True)
+    
+    # Hotel specific fields (required when doc_type is hotel_voucher)
+    hotel_name = models.CharField(max_length=200, blank=True, null=True)
+    hotel_address = models.TextField(blank=True, null=True)
+    room_type = models.CharField(max_length=50, blank=True, null=True)
+    room_number = models.CharField(max_length=20, blank=True, null=True)
+    check_in_date = models.DateField(blank=True, null=True)
+    check_in_time = models.TimeField(blank=True, null=True)
+    check_out_date = models.DateField(blank=True, null=True)
+    check_out_time = models.TimeField(blank=True, null=True)
+    number_of_nights = models.PositiveIntegerField(blank=True, null=True)
 
     class Meta:
         unique_together = [("registration", "doc_type")]
 
     def __str__(self):
         return f"{self.registration.user.email} - {self.doc_type} - {self.title}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.doc_type == TravelDocumentType.VISA:
+            required_fields = ['visa_number', 'visa_type', 'visa_issue_date', 'visa_expiry_date', 'visa_country', 'visa_port_of_entry']
+            missing = [f for f in required_fields if not getattr(self, f)]
+            if missing:
+                raise ValidationError(f"Visa details require: {', '.join(missing).replace('_', ' ').title()}")
+        elif self.doc_type == TravelDocumentType.TICKET:
+            required_fields = ['airline_name', 'flight_number', 'departure_airport', 'arrival_airport', 'departure_date', 'arrival_date', 'seat_number']
+            missing = [f for f in required_fields if not getattr(self, f)]
+            if missing:
+                raise ValidationError(f"Ticket details require: {', '.join(missing).replace('_', ' ').title()}")
+        elif self.doc_type == TravelDocumentType.HOTEL_VOUCHER:
+            required_fields = ['hotel_name', 'hotel_address', 'room_type', 'room_number', 'check_in_date', 'check_out_date', 'number_of_nights']
+            missing = [f for f in required_fields if not getattr(self, f)]
+            if missing:
+                raise ValidationError(f"Hotel details require: {', '.join(missing).replace('_', ' ').title()}")
+        super().clean()
 
 
 # -----------------------------

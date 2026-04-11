@@ -18,6 +18,7 @@ from .models import (
     ManasikGuidance,
     EmergencyContact,
     UserDashboardStats,
+    PaymentDetail,
 )
 from .serializers import (
     UserHajjRegistrationSerializer,
@@ -43,7 +44,10 @@ from .services import (
 )
 
 User = get_user_model()
-cloudinary_service = CloudinaryService()
+
+
+def get_cloudinary_service():
+    return CloudinaryService()
 
 def can_user_proceed(registration) -> bool:
     """
@@ -110,38 +114,37 @@ class AccountSetupView(APIView):
         if not serializer.is_valid():
             return api_response(success=False, message="Validation failed", errors=serializer.errors, status_code=400)
 
-        with transaction.atomic():
-            user = request.user
-            user.set_password(serializer.validated_data['password'])
+        user = request.user
+        user.set_password(serializer.validated_data['password'])
 
-            if username := serializer.validated_data.get('username', '').strip():
-                if username != user.username:
-                    user.username = username
-            user.save()
+        if username := serializer.validated_data.get('username', '').strip():
+            if username != user.username:
+                user.username = username
+        user.save()
 
-            # --- AUTO-APPROVE STEP 1 ---
-            registration.completed_steps.add(registration.current_step)
-            
-            RegistrationStepReview.objects.update_or_create(
-                registration=registration,
-                step=registration.current_step,
-                defaults={
-                    "status": StepReviewStatus.APPROVED,
-                    "reviewed_at": timezone.now(),
-                    "rejection_reason": None
-                }
-            )
+        # --- AUTO-APPROVE STEP 1 ---
+        registration.completed_steps.add(registration.current_step)
+        
+        RegistrationStepReview.objects.update_or_create(
+            registration=registration,
+            step=registration.current_step,
+            defaults={
+                "status": StepReviewStatus.APPROVED,
+                "reviewed_at": timezone.now(),
+                "rejection_reason": None
+            }
+        )
 
-            # Move to next step (Step 2) automatically
-            next_step = RegistrationStep.objects.filter(
-                order__gt=registration.current_step.order,
-                is_active=True
-            ).order_by('order').first()
+        # Move to next step (Step 2) automatically
+        next_step = RegistrationStep.objects.filter(
+            order__gt=registration.current_step.order,
+            is_active=True
+        ).order_by('order').first()
 
-            if next_step:
-                registration.current_step = next_step
-            
-            registration.save(update_fields=['current_step', 'updated_at'])
+        if next_step:
+            registration.current_step = next_step
+        
+        registration.save(update_fields=['current_step', 'updated_at'])
 
         registration.refresh_from_db()
         return api_response(
@@ -277,10 +280,36 @@ class RegistrationFormView(APIView):
                 status_code=400
             )
 
-        with transaction.atomic():
-            # Update fields that were provided
+# Handle profile picture upload to Cloudinary
+            profile_pic = serializer.validated_data.get('profile_picture')
+                
+            if profile_pic:
+                try:
+                    upload_result = get_cloudinary_service().upload(
+                        profile_pic,
+                        subfolder=f"hajj/users/{request.user.id}"
+                    )
+                    user.profile_picture = upload_result.get('secure_url')
+                except Exception as e:
+                    return api_response(
+                        success=False,
+                        message="Failed to upload profile picture",
+                        errors={"profile_picture": [str(e)]},
+                        status_code=400
+                    )
+                    user.profile_picture = upload_result.get('secure_url') or upload_result.get('url')
+                except Exception as e:
+                    return api_response(
+                        success=False,
+                        message="Failed to upload profile picture",
+                        errors={"profile_picture": [str(e)]},
+                        status_code=400
+                    )
+            
+            # Update other fields (excluding profile_picture which we handled above)
             for field, value in serializer.validated_data.items():
-                setattr(user, field, value)
+                if field != 'profile_picture':
+                    setattr(user, field, value)
 
             user.save()
 
@@ -347,8 +376,8 @@ class DocumentUploadView(APIView):
 
         folder = f"hajj/registrations/{registration.id}/documents"
         try:
-            passport_upload = cloudinary_service.upload(passport_file, subfolder=folder)
-            yellow_card_upload = cloudinary_service.upload(yellow_card_file, subfolder=folder)
+            passport_upload = get_cloudinary_service().upload(passport_file, subfolder=folder)
+            yellow_card_upload = get_cloudinary_service().upload(yellow_card_file, subfolder=folder)
         except Exception as exc:
             return api_response(
                 success=False,
@@ -360,46 +389,45 @@ class DocumentUploadView(APIView):
         old_passport_public_id = registration.passport_document_public_id
         old_yellow_public_id = registration.yellow_card_document_public_id
 
-        with transaction.atomic():
-            registration.passport_document = passport_upload.get('secure_url') or passport_upload.get('url')
-            registration.passport_document_public_id = passport_upload.get('public_id')
-            registration.yellow_card_document = yellow_card_upload.get('secure_url') or yellow_card_upload.get('url')
-            registration.yellow_card_document_public_id = yellow_card_upload.get('public_id')
+        registration.passport_document = passport_upload.get('secure_url') or passport_upload.get('url')
+        registration.passport_document_public_id = passport_upload.get('public_id')
+        registration.yellow_card_document = yellow_card_upload.get('secure_url') or yellow_card_upload.get('url')
+        registration.yellow_card_document_public_id = yellow_card_upload.get('public_id')
 
-            registration.completed_steps.add(registration.current_step)
+        registration.completed_steps.add(registration.current_step)
 
-            # Create review as PENDING - wait for admin approval
-            step = registration.current_step
-            RegistrationStepReview.objects.update_or_create(
-                registration=registration,
-                step=step,
-                defaults={
-                    "status": StepReviewStatus.PENDING,
-                    "rejection_reason": None,
-                    "reviewed_by": None,
-                    "reviewed_at": None
-                }
-            )
+        # Create review as PENDING - wait for admin approval
+        step = registration.current_step
+        RegistrationStepReview.objects.update_or_create(
+            registration=registration,
+            step=step,
+            defaults={
+                "status": StepReviewStatus.PENDING,
+                "rejection_reason": None,
+                "reviewed_by": None,
+                "reviewed_at": None
+            }
+        )
 
-            # DO NOT move to next step - wait for admin approval
-            registration.save(update_fields=[
-                'passport_document',
-                'passport_document_public_id',
-                'yellow_card_document',
-                'yellow_card_document_public_id',
-                'updated_at'
-            ])
+        # DO NOT move to next step - wait for admin approval
+        registration.save(update_fields=[
+            'passport_document',
+            'passport_document_public_id',
+            'yellow_card_document',
+            'yellow_card_document_public_id',
+            'updated_at'
+        ])
 
         # Clean up old assets after successful save
         if old_passport_public_id and old_passport_public_id != registration.passport_document_public_id:
             try:
-                cloudinary_service.delete(old_passport_public_id)
+                get_cloudinary_service().delete(old_passport_public_id)
             except Exception:
                 pass
 
         if old_yellow_public_id and old_yellow_public_id != registration.yellow_card_document_public_id:
             try:
-                cloudinary_service.delete(old_yellow_public_id)
+                get_cloudinary_service().delete(old_yellow_public_id)
             except Exception:
                 pass
 
@@ -450,36 +478,35 @@ class AdminApproveDocumentReviewView(APIView):
 
         step = registration.current_step
 
-        with transaction.atomic():
-            review, _ = RegistrationStepReview.objects.get_or_create(
-                registration=registration,
-                step=step,
-                defaults={"reviewed_by": request.user}
-            )
+        review, _ = RegistrationStepReview.objects.get_or_create(
+            registration=registration,
+            step=step,
+            defaults={"reviewed_by": request.user}
+        )
 
-            if action == "approve":
-                review.approve(request.user)
-                if registration.status == RegistrationStatus.FAILED:
-                    registration.status = RegistrationStatus.PENDING
-                registration.completed_steps.add(step)
+        if action == "approve":
+            review.approve(request.user)
+            if registration.status == RegistrationStatus.FAILED:
+                registration.status = RegistrationStatus.PENDING
+            registration.completed_steps.add(step)
 
-                next_step = RegistrationStep.objects.filter(
-                    order__gt=step.order,
-                    is_active=True
-                ).order_by('order').first()
+            next_step = RegistrationStep.objects.filter(
+                order__gt=step.order,
+                is_active=True
+            ).order_by('order').first()
 
-                if next_step:
-                    registration.current_step = next_step
+            if next_step:
+                registration.current_step = next_step
 
-                registration.save(update_fields=['status', 'current_step', 'updated_at'])
-                message = "Documents approved. Registration moved to next step."
+            registration.save(update_fields=['status', 'current_step', 'updated_at'])
+            message = "Documents approved. Registration moved to next step."
 
-                # Send approval email
-                from core.services.email_service import send_step_approved_email
-                if registration.user.email:
-                    send_step_approved_email(registration.user.email, step.title, registration.id)
+            # Send approval email
+            from core.services.email_service import send_step_approved_email
+            if registration.user.email:
+                send_step_approved_email(registration.user.email, step.title, registration.id)
 
-            else:
+        else:
                 if not reason:
                     return api_response(success=False, message="Rejection reason required", status_code=400)
                 review.reject(request.user, reason)

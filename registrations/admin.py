@@ -420,13 +420,13 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
         u = obj.user
         name = " ".join(filter(None, [u.first_name, u.last_name])) or u.username or u.email or u.phone
         
-        # Profile picture button (like passport)
+        # Profile picture button - must be valid Cloudinary URL
         profile_html = ""
-        if u.profile_picture:
-            url = u.profile_picture
+        pic = u.profile_picture
+        if pic and (pic.startswith('http://') or pic.startswith('https://')):
             profile_html = format_html(
                 '<div style="margin-bottom:15px;"><a href="{}" target="_blank" class="button" style="background:#447e9b; color:white; padding:4px 8px;">Open Profile Picture</a></div>',
-                url
+                pic
             )
         
         bio_html = format_html(
@@ -458,10 +458,13 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
         user = obj.user
         if not user.email:
             return
-        if approved:
-            send_step_approved_email(user.email, step_title, obj.id)
-        else:
-            send_step_rejected_email(user.email, step_title, obj.id)
+        try:
+            if approved:
+                send_step_approved_email(user.email, step_title, obj.id)
+            else:
+                send_step_rejected_email(user.email, step_title, obj.id)
+        except Exception:
+            pass
 
     def response_change(self, request, obj):
         # Step 2 - registration_form approval - move to step 3
@@ -589,6 +592,47 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             self.message_user(request, "Payment approved! Registration moved to next step.", messages.SUCCESS)
             return super().response_change(request, obj)
 
+        # Payment Review - Approve to move to document_upload
+        if "_approve_payment_review" in request.POST:
+            step = RegistrationStep.objects.filter(code="payment_review").first()
+            if not step:
+                self.message_user(request, "Payment review step not found", messages.ERROR)
+                return super().response_change(request, obj)
+            
+            # Mark payment_review as complete
+            if not obj.completed_steps.filter(pk=step.pk).exists():
+                obj.completed_steps.add(step)
+            
+            # Create or update review
+            review, _ = RegistrationStepReview.objects.get_or_create(
+                registration=obj,
+                step=step,
+                defaults={
+                    "status": StepReviewStatus.APPROVED,
+                    "reviewed_by": request.user,
+                    "reviewed_at": timezone.now()
+                }
+            )
+            if review.status != StepReviewStatus.APPROVED:
+                review.status = StepReviewStatus.APPROVED
+                review.reviewed_by = request.user
+                review.reviewed_at = timezone.now()
+                review.save(update_fields=['status', 'reviewed_by', 'reviewed_at'])
+            
+            # Move to next step (document_upload)
+            next_step = RegistrationStep.objects.filter(
+                order__gt=step.order,
+                is_active=True
+            ).order_by('order').first()
+            
+            if next_step:
+                obj.current_step = next_step
+            
+            obj.save()
+            self._send_user_notification(obj, step.title, approved=True)
+            self.message_user(request, "Payment review approved! User moved to document upload step.", messages.SUCCESS)
+            return super().response_change(request, obj)
+
         # Payment Details - Reject
         if "_reject_payment" in request.POST:
             reason = request.POST.get("reason", "").strip()
@@ -616,32 +660,24 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
     # Document previews
     # -----------------------------
     def get_passport_preview(self, obj):
-        if obj.passport_document:
-            url = obj.passport_document
-            if not url.startswith('http'):
-                try:
-                    url = default_storage.url(url)
-                except Exception:
-                    url = f"{settings.MEDIA_URL}{url}" if settings.MEDIA_URL else url
+        pic = obj.passport_document
+        # Must be valid Cloudinary URL
+        if pic and (pic.startswith('http://') or pic.startswith('https://')):
             return format_html(
                 '<a href="{0}" target="_blank" class="button" style="background:#447e9b; color:white; padding:4px 8px;">Open Passport</a>',
-                url
+                pic
             )
-        return "Not available"
+        return "Not uploaded"
 
     def get_yellow_card_preview(self, obj):
-        if obj.yellow_card_document:
-            url = obj.yellow_card_document
-            if not url.startswith('http'):
-                try:
-                    url = default_storage.url(url)
-                except Exception:
-                    url = f"{settings.MEDIA_URL}{url}" if settings.MEDIA_URL else url
+        pic = obj.yellow_card_document
+        # Must be valid Cloudinary URL
+        if pic and (pic.startswith('http://') or pic.startswith('https://')):
             return format_html(
                 '<a href="{0}" target="_blank" class="button" style="background:#447e9b; color:white; padding:4px 8px;">Open Yellow Card</a>',
-                url
+                pic
             )
-        return "Not available"
+        return "Not uploaded"
 
     def get_travel_documents_list(self, obj):
         docs = obj.travel_documents.all()

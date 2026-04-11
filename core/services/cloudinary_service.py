@@ -13,12 +13,20 @@ class CloudinaryService:
     BASE_FOLDER = "assemblytour"
     ALLOWED_FILE_TYPES = ["jpg", "jpeg", "png", "pdf"]
 
+    _configured = False
+
+    @classmethod
+    def ensure_configured(cls):
+        if not cls._configured:
+            cloudinary.config(
+                cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+                api_key=os.getenv("CLOUDINARY_API_KEY"),
+                api_secret=os.getenv("CLOUDINARY_API_SECRET")
+            )
+            cls._configured = True
+
     def __init__(self):
-        cloudinary.config(
-            cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-            api_key=os.getenv("CLOUDINARY_API_KEY"),
-            api_secret=os.getenv("CLOUDINARY_API_SECRET")
-        )
+        self.ensure_configured()
 
     def resize_image(self, file, max_width: int, max_height: int):
         """

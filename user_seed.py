@@ -17,7 +17,7 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 
 # Test user credentials
-username = "testuser"
+
 password = "testpass123"
 email = "testuser@example.com"
 phone = "+2348000000001"

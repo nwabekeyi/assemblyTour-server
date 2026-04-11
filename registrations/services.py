@@ -133,40 +133,39 @@ def complete_travel_documents_step(registration):
         }
         return {"error": True, "missing": [missing_labels.get(t, t) for t in missing_types]}
 
-    with transaction.atomic():
-        review, created = RegistrationStepReview.objects.get_or_create(
-            registration=registration,
-            step=travel_step,
-            defaults={
-                "status": StepReviewStatus.APPROVED,
-                "reviewed_by": None,
-                "reviewed_at": timezone.now(),
-            }
-        )
-        if not created and review.status != StepReviewStatus.APPROVED:
-            review.status = StepReviewStatus.APPROVED
-            review.rejection_reason = ""
-            review.reviewed_at = timezone.now()
-            review.save(update_fields=["status", "rejection_reason", "reviewed_at"])
+    review, created = RegistrationStepReview.objects.get_or_create(
+        registration=registration,
+        step=travel_step,
+        defaults={
+            "status": StepReviewStatus.APPROVED,
+            "reviewed_by": None,
+            "reviewed_at": timezone.now(),
+        }
+    )
+    if not created and review.status != StepReviewStatus.APPROVED:
+        review.status = StepReviewStatus.APPROVED
+        review.rejection_reason = ""
+        review.reviewed_at = timezone.now()
+        review.save(update_fields=["status", "rejection_reason", "reviewed_at"])
 
-        if registration.completed_steps.filter(pk=travel_step.pk).exists():
-            return travel_step
+    if registration.completed_steps.filter(pk=travel_step.pk).exists():
+        return travel_step
 
-        registration.completed_steps.add(travel_step)
+    registration.completed_steps.add(travel_step)
 
-        next_step = RegistrationStep.objects.filter(
-            order__gt=travel_step.order,
-            is_active=True
-        ).order_by('order').first()
+    next_step = RegistrationStep.objects.filter(
+        order__gt=travel_step.order,
+        is_active=True
+    ).order_by('order').first()
 
-        if (
-            next_step
-            and registration.current_step
-            and registration.current_step.order <= travel_step.order
-        ):
-            registration.current_step = next_step
+    if (
+        next_step
+        and registration.current_step
+        and registration.current_step.order <= travel_step.order
+    ):
+        registration.current_step = next_step
 
-        registration.save(update_fields=["current_step", "updated_at"])
+    registration.save(update_fields=["current_step", "updated_at"])
 
     return travel_step
 
@@ -186,27 +185,26 @@ def complete_payment_details_step(registration):
     if not has_payment:
         return {"error": True, "missing": ["Payment Proof"]}
 
-    with transaction.atomic():
-        review, created = RegistrationStepReview.objects.get_or_create(
-            registration=registration,
-            step=payment_step,
-            defaults={
-                "status": StepReviewStatus.PENDING,  # Needs admin approval
-                "reviewed_by": None,
-                "reviewed_at": timezone.now(),
-            }
-        )
-        # For payment, we don't auto-approve - it waits for admin
-        # If rejected, we keep the rejection reason
-        
-        if registration.completed_steps.filter(pk=payment_step.pk).exists():
-            return payment_step
+    review, created = RegistrationStepReview.objects.get_or_create(
+        registration=registration,
+        step=payment_step,
+        defaults={
+            "status": StepReviewStatus.PENDING,  # Needs admin approval
+            "reviewed_by": None,
+            "reviewed_at": timezone.now(),
+        }
+    )
+    # For payment, we don't auto-approve - it waits for admin
+    # If rejected, we keep the rejection reason
+    
+    if registration.completed_steps.filter(pk=payment_step.pk).exists():
+        return payment_step
 
-        registration.completed_steps.add(payment_step)
+    registration.completed_steps.add(payment_step)
 
-        # DO NOT move to next step - wait for admin approval
-        
-        registration.save(update_fields=["updated_at"])
+    # DO NOT move to next step - wait for admin approval
+    
+    registration.save(update_fields=["updated_at"])
 
     return payment_step
 
@@ -220,38 +218,37 @@ def approve_payment_step(registration, admin_user=None):
     if not payment_step:
         return None
 
-    with transaction.atomic():
-        review, created = RegistrationStepReview.objects.get_or_create(
-            registration=registration,
-            step=payment_step,
-            defaults={
-                "status": StepReviewStatus.APPROVED,
-                "reviewed_by": admin_user,
-                "reviewed_at": timezone.now(),
-            }
-        )
-        
-        if not created:
-            review.status = StepReviewStatus.APPROVED
-            review.reviewed_by = admin_user
-            review.reviewed_at = timezone.now()
-            review.rejection_reason = ""
-            review.save(update_fields=["status", "reviewed_by", "reviewed_at", "rejection_reason"])
+    review, created = RegistrationStepReview.objects.get_or_create(
+        registration=registration,
+        step=payment_step,
+        defaults={
+            "status": StepReviewStatus.APPROVED,
+            "reviewed_by": admin_user,
+            "reviewed_at": timezone.now(),
+        }
+    )
+    
+    if not created:
+        review.status = StepReviewStatus.APPROVED
+        review.reviewed_by = admin_user
+        review.reviewed_at = timezone.now()
+        review.rejection_reason = ""
+        review.save(update_fields=["status", "reviewed_by", "reviewed_at", "rejection_reason"])
 
-        # If payment step is now approved, check if we can move to next step
-        if registration.completed_steps.filter(pk=payment_step.pk).exists():
-            next_step = RegistrationStep.objects.filter(
-                order__gt=payment_step.order,
-                is_active=True
-            ).order_by('order').first()
+    # If payment step is now approved, check if we can move to next step
+    if registration.completed_steps.filter(pk=payment_step.pk).exists():
+        next_step = RegistrationStep.objects.filter(
+            order__gt=payment_step.order,
+            is_active=True
+        ).order_by('order').first()
 
-            if (
-                next_step
-                and registration.current_step
-                and registration.current_step.order <= payment_step.order
-            ):
-                registration.current_step = next_step
-                registration.save(update_fields=["current_step", "updated_at"])
+        if (
+            next_step
+            and registration.current_step
+            and registration.current_step.order <= payment_step.order
+        ):
+            registration.current_step = next_step
+            registration.save(update_fields=["current_step", "updated_at"])
 
     return payment_step
 

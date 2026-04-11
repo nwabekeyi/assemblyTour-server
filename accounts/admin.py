@@ -15,10 +15,12 @@ class CustomUserAdmin(UserAdmin):
 
     def get_profile_picture_link(self, obj):
         """Return profile picture as clickable button."""
-        if obj.profile_picture:
+        pic = obj.profile_picture
+        # Must be a valid Cloudinary URL
+        if pic and (pic.startswith('http://') or pic.startswith('https://')):
             return format_html(
                 '<a href="{}" target="_blank" class="button" style="background:#447e9b; color:white; padding:4px 8px;">Open Profile Picture</a>',
-                obj.profile_picture
+                pic
             )
         return "No profile picture"
 

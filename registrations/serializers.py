@@ -12,6 +12,7 @@ from .models import (
     SupportTicketReply,
     ManasikGuidance,
     EmergencyContact,
+    PaymentDetail,
 )
 
 User = get_user_model()
@@ -62,6 +63,9 @@ class UserHajjRegistrationSerializer(serializers.ModelSerializer):
     # Current step status: "pending" (can fill), "awaiting_approval", "approved"
     current_step_status = serializers.SerializerMethodField()
 
+    # Package details for payment
+    package_price = serializers.SerializerMethodField()
+
     class Meta:
         model = HajjRegistration
         fields = [
@@ -76,6 +80,7 @@ class UserHajjRegistrationSerializer(serializers.ModelSerializer):
             'all_steps',
             'completed_step_codes',
             'package',
+            'package_price',
             'passport_document',
             'yellow_card_document',
             'travel_documents',
@@ -131,8 +136,9 @@ class UserHajjRegistrationSerializer(serializers.ModelSerializer):
         
         step_code = obj.current_step.code
         
-        # Check if already in completed steps
-        if obj.completed_step_codes and step_code in obj.completed_step_codes:
+        # Check if step is in completed_steps
+        completed_codes = list(obj.completed_steps.values_list('code', flat=True))
+        if step_code in completed_codes:
             return "approved"
         
         # Check step_reviews for this step
@@ -148,6 +154,11 @@ class UserHajjRegistrationSerializer(serializers.ModelSerializer):
         
         # No review yet - user can fill
         return "pending"
+
+    def get_package_price(self, obj):
+        if not obj.package:
+            return None
+        return str(obj.package.price_current)
 
 
 # -----------------------------
@@ -208,7 +219,7 @@ class RegistrationFormSerializer(serializers.Serializer):
         choices=[('male', 'Male'), ('female', 'Female')],
         required=True
     )
-    profile_picture = serializers.ImageField(required=True)
+    profile_picture = serializers.FileField(required=True, max_length=5 * 1024 * 1024)  # 5MB max
     nationality = serializers.CharField(max_length=50, required=True)
     state_of_origin = serializers.CharField(max_length=50, required=False)
     passport_number = serializers.CharField(max_length=50, required=True)
@@ -342,3 +353,26 @@ class EmergencyContactSerializer(serializers.ModelSerializer):
         model = EmergencyContact
         fields = ['id', 'name', 'contact_type', 'value', 'description', 'is_active', 'order']
         read_only_fields = ['id']
+
+
+# -----------------------------
+# PAYMENT DETAILS
+# -----------------------------
+class PaymentDetailSerializer(serializers.ModelSerializer):
+    uploaded_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PaymentDetail
+        fields = ['id', 'title', 'file', 'description', 'uploaded_by_name', 'uploaded_at']
+        read_only_fields = ['id', 'uploaded_by_name', 'uploaded_at']
+
+    def get_uploaded_by_name(self, obj):
+        if obj.uploaded_by:
+            return obj.uploaded_by.username or obj.uploaded_by.email or obj.uploaded_by.phone
+        return None
+
+
+class PaymentDetailUploadSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=100, required=True)
+    file = serializers.FileField(required=True)
+    description = serializers.CharField(required=False, allow_blank=True, default='')

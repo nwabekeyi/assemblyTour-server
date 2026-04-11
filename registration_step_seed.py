@@ -58,17 +58,6 @@ REGISTRATION_STEPS = [
         "order": 3,
     },
     {
-        "code": "payment_review",
-        "title": "Payment Review",
-        "description": (
-            "Your payment is being reviewed by our finance team. "
-            "You will be notified once it's approved or if additional information is needed."
-        ),
-        "action_type": StepAction.APPROVAL,
-        "data_scope": StepDataScope.PAYMENT,
-        "order": 4,
-    },
-    {
         "code": "document_upload",
         "title": "Upload All Documents",
         "description": (
@@ -76,7 +65,7 @@ REGISTRATION_STEPS = [
         ),
         "action_type": StepAction.UPLOAD,
         "data_scope": StepDataScope.DOCUMENTS,
-        "order": 5,
+        "order": 4,
     },
     {
         "code": "document_review",
@@ -87,7 +76,7 @@ REGISTRATION_STEPS = [
         ),
         "action_type": StepAction.APPROVAL,
         "data_scope": StepDataScope.DOCUMENTS,
-        "order": 7,
+        "order": 5,
     },
     {
         "code": "visa_status",
@@ -97,7 +86,7 @@ REGISTRATION_STEPS = [
         ),
         "action_type": StepAction.AUTO,
         "data_scope": StepDataScope.DOCUMENTS,
-        "order": 8,
+        "order": 6,
     },
     {
         "code": "travel_documents",
@@ -107,7 +96,7 @@ REGISTRATION_STEPS = [
         ),
         "action_type": StepAction.UPLOAD,
         "data_scope": StepDataScope.DOCUMENTS,
-        "order": 9,
+        "order": 7,
     },
     {
         "code": "arrival_status",
@@ -118,7 +107,7 @@ REGISTRATION_STEPS = [
         ),
         "action_type": StepAction.AUTO,
         "data_scope": StepDataScope.FLIGHT,
-        "order": 10,
+        "order": 8,
     },
 ]
 

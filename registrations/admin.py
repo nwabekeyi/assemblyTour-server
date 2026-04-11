@@ -200,6 +200,7 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
         "user", "package", "current_step", "status", "completed_steps",
         "get_user_bio_summary", "get_passport_preview", "get_yellow_card_preview",
         "get_travel_documents_list", "get_payment_proof_preview", "get_payment_review_status",
+        "get_user_profile_picture_metadata", "get_registration_documents_metadata",
         "created_at", "updated_at"
     )
 
@@ -284,7 +285,12 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
 
             # System metadata
             fieldsets.append(("System Metadata", {
-                "fields": ("created_at", "updated_at"),
+                "fields": (
+                    "get_user_profile_picture_metadata",
+                    "get_registration_documents_metadata",
+                    "created_at",
+                    "updated_at",
+                ),
                 "classes": ("collapse",)
             }))
 
@@ -338,6 +344,33 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             "rejected": f"Rejected: {review.rejection_reason or 'No reason'}"
         }
         return status_map.get(review.status, review.status)
+
+    def get_user_profile_picture_metadata(self, obj):
+        profile_picture = getattr(obj.user, "profile_picture", None)
+        if not profile_picture:
+            return "No profile picture uploaded"
+
+        if profile_picture.startswith(("http://", "https://")):
+            return format_html(
+                '<a href="{0}" target="_blank" class="button" style="background:#447e9b; color:white; padding:4px 8px;">Open Profile Picture</a>',
+                profile_picture
+            )
+
+        return profile_picture
+    get_user_profile_picture_metadata.short_description = "Profile Picture (User)"
+
+    def get_registration_documents_metadata(self, obj):
+        return format_html(
+            "<b>Passport URL:</b> {}<br>"
+            "<b>Passport Public ID:</b> {}<br>"
+            "<b>Yellow Card URL:</b> {}<br>"
+            "<b>Yellow Card Public ID:</b> {}",
+            obj.passport_document or "-",
+            obj.passport_document_public_id or "-",
+            obj.yellow_card_document or "-",
+            obj.yellow_card_document_public_id or "-",
+        )
+    get_registration_documents_metadata.short_description = "Uploaded Document Metadata"
 
     def _handle_visa_status_transition(self, request, obj):
         if not obj:
@@ -482,8 +515,8 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             
             next_step = RegistrationStep.objects.filter(
                 order__gt=step.order,
-                is_active=True
-            ).order_by('order').first()
+                is_active=True,
+            ).exclude(code="payment_review").order_by('order').first()
             
             if next_step:
                 obj.current_step = next_step
@@ -529,8 +562,8 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             
             next_step = RegistrationStep.objects.filter(
                 order__gt=step.order,
-                is_active=True
-            ).order_by('order').first()
+                is_active=True,
+            ).exclude(code="payment_review").order_by('order').first()
             
             if next_step:
                 obj.current_step = next_step
@@ -581,8 +614,8 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             
             next_step = RegistrationStep.objects.filter(
                 order__gt=step.order,
-                is_active=True
-            ).order_by('order').first()
+                is_active=True,
+            ).exclude(code="payment_review").order_by('order').first()
             
             if next_step:
                 obj.current_step = next_step
@@ -590,47 +623,6 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             obj.save()
             self._send_user_notification(obj, step.title, approved=True)
             self.message_user(request, "Payment approved! Registration moved to next step.", messages.SUCCESS)
-            return super().response_change(request, obj)
-
-        # Payment Review - Approve to move to document_upload
-        if "_approve_payment_review" in request.POST:
-            step = RegistrationStep.objects.filter(code="payment_review").first()
-            if not step:
-                self.message_user(request, "Payment review step not found", messages.ERROR)
-                return super().response_change(request, obj)
-            
-            # Mark payment_review as complete
-            if not obj.completed_steps.filter(pk=step.pk).exists():
-                obj.completed_steps.add(step)
-            
-            # Create or update review
-            review, _ = RegistrationStepReview.objects.get_or_create(
-                registration=obj,
-                step=step,
-                defaults={
-                    "status": StepReviewStatus.APPROVED,
-                    "reviewed_by": request.user,
-                    "reviewed_at": timezone.now()
-                }
-            )
-            if review.status != StepReviewStatus.APPROVED:
-                review.status = StepReviewStatus.APPROVED
-                review.reviewed_by = request.user
-                review.reviewed_at = timezone.now()
-                review.save(update_fields=['status', 'reviewed_by', 'reviewed_at'])
-            
-            # Move to next step (document_upload)
-            next_step = RegistrationStep.objects.filter(
-                order__gt=step.order,
-                is_active=True
-            ).order_by('order').first()
-            
-            if next_step:
-                obj.current_step = next_step
-            
-            obj.save()
-            self._send_user_notification(obj, step.title, approved=True)
-            self.message_user(request, "Payment review approved! User moved to document upload step.", messages.SUCCESS)
             return super().response_change(request, obj)
 
         # Payment Details - Reject

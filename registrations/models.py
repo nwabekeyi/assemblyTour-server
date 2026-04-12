@@ -65,7 +65,7 @@ class VisaStatus(models.TextChoices):
 
 class JourneyPresenceStatus(models.TextChoices):
     PRE_TRAVEL = "pre_travel", "Awaiting Travel"
-    IN_MECCA = "in_mecca", "In Mecca"
+    IN_MECCA = "in_mecca", "In Destination"
     ARRIVED = "arrived", "Arrived"
     DID_NOT_ARRIVE = "did_not_arrive", "Did Not Arrive"
 

@@ -270,10 +270,11 @@ class TravelDocumentInline(admin.StackedInline):
             else:
                 raise ValidationError(f"A {obj.get_doc_type_display()} document already exists for this registration.")
         
-        super(TravelDocumentInline, self).save_model(request, obj, form, change)
+        # Check BEFORE save - if there are 2 docs, this will be the 3rd
+        current_count = obj.registration.travel_documents.count()
+        is_third_doc = current_count == 2  # This will be the 3rd after save
         
-        # Check AFTER save - if we now have 3 documents and all required types
-        new_count = obj.registration.travel_documents.count()
+        super(TravelDocumentInline, self).save_model(request, obj, form, change)
         
         # Update ticket_info and hotel_info from travel documents
         reg = obj.registration
@@ -307,9 +308,9 @@ class TravelDocumentInline(admin.StackedInline):
         
         reg.save(update_fields=['ticket_info', 'hotel_info'])
         
-        # Move to next step if we now have 3 documents after save and all required types exist
-        if new_count == 3:
-            print(f"DEBUG: About to complete travel documents step for registration {reg.id}. New doc count is {new_count}")
+        # Move to next step if this is the 3rd document (was 2 before, now 3 after save)
+        if is_third_doc:
+            print(f"DEBUG: About to complete travel documents step for registration {reg.id}. Adding 3rd doc.")
             try:
                 result = complete_travel_documents_step(reg)
                 print(f"DEBUG: complete_travel_documents_step result: {result}")
@@ -371,6 +372,7 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
         "get_user_bio_summary", "get_passport_preview", "get_yellow_card_preview",
         "get_travel_documents_list", "get_payment_proof_preview", "get_payment_review_status",
         "get_user_profile_picture_metadata", "get_registration_documents_metadata",
+        "get_account_summary", "get_visa_status_display", "get_journey_status_display",
         "cancellation_reason", "cancelled_by", "cancelled_at",
         "created_at", "updated_at"
     )
@@ -414,45 +416,41 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
     # Fieldsets
     # -----------------------------
     def get_fieldsets(self, request, obj=None):
+        # Core Progress - read-only (excludes visa_status and journey_presence_status)
         fieldsets = [
-            ("Core Progress", {"fields": ("user", "package", "current_step", "status", "visa_status", "journey_presence_status", "completed_steps")}),
+            ("Core Progress", {
+                "fields": ("user", "package", "current_step", "status", "completed_steps"),
+                "description": "This section is read-only."
+            }),
         ]
 
         if obj:
-            # Step 2: In progress
+            # Step 1: Account Setup
+            account_step = RegistrationStep.objects.filter(code="account_setup").first()
+            if account_step:
+                account_review = obj.step_reviews.filter(step=account_step).first()
+                if not account_review or account_review.status == "pending":
+                    fieldsets.append(("Step 1: Account Setup", {
+                        "fields": ("get_account_summary",),
+                        "description": "Account setup pending. Approve below."
+                    }))
+                elif account_review.status == "approved":
+                    fieldsets.append(("Step 1: Account Approved", {
+                        "fields": ("get_account_summary",),
+                    }))
+
+            # Step 2: User Bio
             if obj.current_step.code == "registration_form":
                 fieldsets.append(("Step 2: User Bio", {
                     "fields": ("get_user_bio_summary",),
                     "description": "Step in progress. Approve or Reject below."
                 }))
-            # Step 2: Approved
             elif obj.completed_steps.filter(code="registration_form").exists():
                 fieldsets.append(("Step 2: Approved Bio-Data", {
                     "fields": ("get_user_bio_summary",),
                 }))
 
-            # Step 3 Documents
-            if obj.completed_steps.filter(code="document_upload").exists():
-                fieldsets.append(("Step 3: User Documents", {
-                    "fields": ("get_passport_preview", "get_yellow_card_preview"),
-                    "description": "Documents uploaded. Approve or Reject below."
-                }))
-            
-            # Step 4: Document Review
-            if obj.current_step.code == "document_review":
-                review = obj.step_reviews.filter(step__code="document_review").first()
-                if review:
-                    if review.status == "pending":
-                        fieldsets.append(("Step 4: Document Review", {
-                            "fields": ("get_passport_preview", "get_yellow_card_preview"),
-                            "description": "Documents awaiting review. Approve or Reject below."
-                        }))
-                    elif review.status == "approved":
-                        fieldsets.append(("Step 4: Document Review Approved", {
-                            "fields": ("get_passport_preview", "get_yellow_card_preview"),
-                        }))
-
-            # Step 4.5: Payment Details
+            # Step 3: Payment Details
             payment_step = RegistrationStep.objects.filter(code="payment_details").first()
             if payment_step:
                 payment_review = obj.step_reviews.filter(step=payment_step).first()
@@ -460,31 +458,38 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
                 
                 if payment_uploaded:
                     if not payment_review or payment_review.status == "pending":
-                        fieldsets.append(("Step 4.5: Payment Details", {
+                        fieldsets.append(("Step 3: Payment Details", {
                             "fields": ("get_payment_proof_preview", "get_payment_review_status"),
-                            "description": "Payment proof uploaded. Approve or Reject below."
+                            "description": "Payment uploaded. Approve or Reject below."
                         }))
                     elif payment_review.status == "approved":
-                        fieldsets.append(("Step 4.5: Payment Approved", {
+                        fieldsets.append(("Step 3: Payment Approved", {
                             "fields": ("get_payment_proof_preview",),
                         }))
 
-            # Step 5: Visa Status
-            fieldsets.append(("Step 5: Visa Status", {
+            # Step 4: Documents
+            if obj.completed_steps.filter(code="document_upload").exists():
+                fieldsets.append(("Step 4: User Documents", {
+                    "fields": ("get_passport_preview", "get_yellow_card_preview"),
+                    "description": "Documents uploaded. Approve or Reject below."
+                }))
+
+            # Visa Status - editable
+            fieldsets.append(("Visa Status", {
                 "fields": ("visa_status", "visa_status_notes"),
-                "description": "Set whether the visa is pending, ready, or failed."
+                "description": "Update visa status here."
             }))
 
-            # Step 6: Travel Documents
-            fieldsets.append(("Step 6: Travel Documents", {
+            # Travel Documents
+            fieldsets.append(("Travel Documents", {
                 "fields": ("get_travel_documents_list",),
-                "description": "Review or upload travel documents such as visas, tickets, and hotel vouchers using the inline section below."
+                "description": "Review travel documents using inline below."
             }))
 
-            # Step 7: Arrival Status (final step)
-            fieldsets.append(("Step 7: Arrival Status", {
+            # Arrival Status - editable
+            fieldsets.append(("Arrival Status", {
                 "fields": ("journey_presence_status", "journey_presence_notes"),
-                "description": "Default state is 'Awaiting Travel'. Update when the pilgrim departs, arrives, or if an incident occurs."
+                "description": "Update journey presence status."
             }))
 
             # System metadata
@@ -666,17 +671,17 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
         if state == JourneyPresenceStatus.IN_MECCA:
             if obj.status == RegistrationStatus.NOT_STARTED:
                 obj.status = RegistrationStatus.PENDING
-                obj.save(update_fields=["status", "updated_at"])
-                self.message_user(
-                    request,
-                    "Pilgrim marked as currently in Mecca.",
-                    messages.SUCCESS
-                )
+            obj.save(update_fields=["status", "journey_presence_status", "updated_at"])
+            self.message_user(
+                request,
+                "Pilgrim marked as currently in Mecca.",
+                messages.SUCCESS
+            )
         elif state == JourneyPresenceStatus.ARRIVED:
             if step and not obj.completed_steps.filter(pk=step.pk).exists():
                 obj.completed_steps.add(step)
             obj.status = RegistrationStatus.COMPLETED
-            obj.save(update_fields=["status", "updated_at"])
+            obj.save(update_fields=["status", "journey_presence_status", "updated_at"])
             self.message_user(
                 request,
                 "Pilgrim marked as arrived and registration completed.",
@@ -686,7 +691,7 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             if step and not obj.completed_steps.filter(pk=step.pk).exists():
                 obj.completed_steps.add(step)
             obj.status = RegistrationStatus.FAILED
-            obj.save(update_fields=["status", "updated_at"])
+            obj.save(update_fields=["status", "journey_presence_status", "updated_at"])
             self.message_user(
                 request,
                 "Incident recorded. Registration marked as 'Did Not Arrive'.",
@@ -863,6 +868,9 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             obj.yellow_card_document = None
             obj.yellow_card_document_public_id = None
             
+            # Remove from completed_steps so status shows "rejected"
+            obj.completed_steps.remove(step)
+            
             review, _ = RegistrationStepReview.objects.get_or_create(
                 registration=obj,
                 step=step,
@@ -995,23 +1003,67 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             reason = request.POST.get("reason", "").strip()
             if not reason:
                 self.message_user(request, "Rejection reason is required.", messages.ERROR)
-            else:
-                step = RegistrationStep.objects.filter(code="payment_details").first()
-                if step:
-                    review, _ = RegistrationStepReview.objects.get_or_create(
-                        registration=obj,
-                        step=step,
-                        defaults={"reviewed_by": request.user}
-                    )
-                    review.reject(request.user, reason)
-                    # Keep status as PENDING so user can resubmit
-                    obj.status = RegistrationStatus.PENDING
-                    obj.save()
-                    self._send_user_notification(obj, step.title, approved=False, rejection_reason=reason)
-                    self.message_user(request, f"Payment rejected: {reason}. User can resubmit.", messages.WARNING)
+                return super().response_change(request, obj)
+            
+            step = RegistrationStep.objects.filter(code="payment_details").first()
+            if not step:
+                self.message_user(request, "Payment step not found", messages.ERROR)
+                return super().response_change(request, obj)
+            
+            # Remove from completed_steps so status shows "rejected"
+            obj.completed_steps.remove(step)
+            
+            review, _ = RegistrationStepReview.objects.get_or_create(
+                registration=obj,
+                step=step,
+                defaults={"reviewed_by": request.user}
+            )
+            review.reject(request.user, reason)
+            # Keep status as PENDING so user can resubmit
+            obj.status = RegistrationStatus.PENDING
+            obj.save()
+            self._send_user_notification(obj, step.title, approved=False, rejection_reason=reason)
+            self.message_user(request, f"Payment rejected: {reason}. User can resubmit.", messages.WARNING)
             return super().response_change(request, obj)
 
         return super().response_change(request, obj)
+
+    # -----------------------------
+    # Read-only display methods
+    # -----------------------------
+    def get_visa_status_display(self, obj):
+        if obj.visa_status:
+            status_colors = {
+                "pending": "🟡 Pending",
+                "ready": "🟢 Ready", 
+                "issued": "🔵 Issued",
+                "rejected": "🔴 Rejected"
+            }
+            return status_colors.get(obj.visa_status, obj.visa_status)
+        return "Pending"
+    get_visa_status_display.short_description = "Visa Status"
+
+    def get_journey_status_display(self, obj):
+        if obj.journey_presence_status:
+            status_colors = {
+                "pre_travel": "🟡 Awaiting Travel",
+                "in_mecca": "🟢 In Destination",
+                "arrived": "🔵 Arrived",
+                "did_not_arrive": "🔴 Did Not Arrive"
+            }
+            return status_colors.get(obj.journey_presence_status, obj.journey_presence_status)
+        return "Awaiting Travel"
+    get_journey_status_display.short_description = "Journey Status"
+
+    def get_account_summary(self, obj):
+        u = obj.user
+        return format_html(
+            "User: {} | Email: {} | Phone: {}",
+            u.username or "-",
+            u.email or "-",
+            u.phone or "-"
+        )
+    get_account_summary.short_description = "Account Info"
 
     # -----------------------------
     # Document previews

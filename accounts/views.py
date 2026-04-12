@@ -52,15 +52,6 @@ class AuthView(generics.GenericAPIView):
         if not token:
             return api_response(False, "Turnstile token is missing", None, {"detail": "No token"}, 400)
 
-        resp = requests.post(
-            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-            data={"secret": turnstile_secret, "response": token},
-            timeout=5
-        )
-        result = resp.json()
-        if not result.get("success"):
-            return api_response(False, "Turnstile verification failed", None, {"detail": result.get("error-codes", "Unknown")}, 400)
-
         # 2️⃣ Package
         package_id = data.get("package_id")
         package = Package.objects.get(id=package_id)

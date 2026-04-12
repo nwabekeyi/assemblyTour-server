@@ -80,7 +80,7 @@ class NewsletterSendView(generics.CreateAPIView):
         # Send email to all subscribers
         try:
             send_mail(
-                subject=f"[Assembly Tours] {subject}",
+                subject=f"[Assembly Travels] {subject}",
                 message=message,
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=list(subscribers),

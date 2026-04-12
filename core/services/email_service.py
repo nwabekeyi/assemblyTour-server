@@ -33,7 +33,7 @@ What happens next?
 If you have any questions, please contact support.
 
 Best regards,
-Assembly Tour Team''',
+Assembly Travels Team''',
         },
         'failed': {
             'subject': f'❌ Registration Step Revision Needed - {step_title}',
@@ -46,7 +46,7 @@ The "{step_title}" step requires revision. Please log in to your dashboard to re
 If you believe this is an error, please contact support.
 
 Best regards,
-Assembly Tour Team''',
+Assembly Travels Team''',
         },
         'cancelled': {
             'subject': '❌ Registration Cancelled',
@@ -57,7 +57,7 @@ Your registration (ID: {registration_id}) has been cancelled.
 If you would like to start a new registration, please visit our packages page.
 
 Best regards,
-Assembly Tour Team''',
+Assembly Travels Team''',
         },
     }
 
@@ -183,7 +183,7 @@ RESPONSE
 If you need further assistance, please create a new support ticket.
 
 Best regards,
-Assembly Tour Team'''
+Assembly Travels Team'''
 
     try:
         send_mail(
@@ -283,8 +283,8 @@ def send_login_credentials_email(user_email, username, temp_password, package_na
         logger.warning("Cannot send login credentials: no user email")
         return False
 
-    email_subject = "🔐 Your Assembly Tour Login Credentials"
-    email_body = f'''Welcome to Assembly Tour!
+    email_subject = "🔐 Your Assembly Travels Login Credentials"
+    email_body = f'''Welcome to Assembly Travels!
 
 Thank you for registering for the {package_name} package.
 
@@ -297,12 +297,12 @@ PASSWORD: {temp_password}
 
 Please login and change your password immediately for security purposes.
 
-Login URL: https://assemblytours.com/login
+Login URL: https://assemblytravels.com/login
 
 If you did not initiate this registration, please contact support immediately.
 
 Best regards,
-Assembly Tour Team'''
+Assembly Travels Team'''
 
     try:
         send_mail(
@@ -339,7 +339,7 @@ RESPONSE
 If you need further assistance, please create a new support ticket.
 
 Best regards,
-Assembly Tour Team'''
+Assembly Travels Team'''
 
     try:
         send_mail(

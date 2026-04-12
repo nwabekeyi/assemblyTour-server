@@ -107,13 +107,13 @@ class UserHajjRegistrationSerializer(serializers.ModelSerializer):
         if not obj.current_step:
             return None
 
-        review = RegistrationStepReview.objects.filter(
-            registration=obj,
-            step=obj.current_step,
-            status="rejected",
-        ).first()
+        # Use list() to avoid Django bug with filter().first()
+        reviews_list = list(obj.step_reviews.all())
+        for r in reviews_list:
+            if r.step_id == obj.current_step_id and r.status == "rejected":
+                return r.rejection_reason
 
-        return review.rejection_reason if review else None
+        return None
 
     def get_travel_documents(self, obj):
         return TravelDocumentSerializer(obj.travel_documents.all(), many=True).data
@@ -141,8 +141,13 @@ class UserHajjRegistrationSerializer(serializers.ModelSerializer):
         if step_code in completed_codes:
             return "approved"
         
-        # Check step_reviews for this step
-        review = obj.step_reviews.filter(step=obj.current_step).first()
+        # Check step_reviews for this step - use list() instead of filter().first() (Django bug)
+        reviews_list = list(obj.step_reviews.all())
+        review = None
+        for r in reviews_list:
+            if r.step_id == obj.current_step_id:
+                review = r
+                break
         
         if review:
             if review.status == "approved":

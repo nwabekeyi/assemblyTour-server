@@ -223,45 +223,22 @@ class RegistrationFormView(APIView):
 
         user = request.user
         
-        # Check if this is a returning user with existing data
-        # Only require fields that are NOT already set in the user profile
+        # Get all data from request
         data = request.data.copy()
-        fields_that_can_skip = []
         
-        if user.email:
-            data.pop('email', None)
-            fields_that_can_skip.append('email')
-        if user.first_name:
-            data.pop('first_name', None)
-            fields_that_can_skip.append('first_name')
-        if user.last_name:
-            data.pop('last_name', None)
-            fields_that_can_skip.append('last_name')
-        if user.date_of_birth:
-            data.pop('date_of_birth', None)
-            fields_that_can_skip.append('date_of_birth')
-        if user.gender:
-            data.pop('gender', None)
-            fields_that_can_skip.append('gender')
-        if user.nationality:
-            data.pop('nationality', None)
-            fields_that_can_skip.append('nationality')
-        if user.state_of_origin:
-            data.pop('state_of_origin', None)
-            fields_that_can_skip.append('state_of_origin')
-        if user.address:
-            data.pop('address', None)
-            fields_that_can_skip.append('address')
-        if user.emergency_contact_name:
-            data.pop('emergency_contact_name', None)
-            fields_that_can_skip.append('emergency_contact_name')
-        if user.emergency_contact_phone:
-            data.pop('emergency_contact_phone', None)
-            fields_that_can_skip.append('emergency_contact_phone')
-        if user.phone:
-            data.pop('phone', None)
-            fields_that_can_skip.append('phone')
-        # Profile picture and passport are always required (need fresh upload)
+        # Remove empty strings from data
+        for key in list(data.keys()):
+            if data.get(key) == '' or data.get(key) is None:
+                data.pop(key, None)
+        
+        # If no data left after removing empties, require all fields
+        if not data and not request.data.get('profile_picture'):
+            return api_response(
+                success=False,
+                message="Please fill in your information",
+                errors={"form": ["Please provide your details"]},
+                status_code=400
+            )
         
         serializer = RegistrationFormSerializer(data=data, partial=True)
         if not serializer.is_valid():
@@ -282,56 +259,58 @@ class RegistrationFormView(APIView):
                 status_code=400
             )
 
-# Handle profile picture upload to Cloudinary
-            profile_pic = serializer.validated_data.get('profile_picture')
-                
-            if profile_pic:
-                try:
-                    upload_result = get_cloudinary_service().upload(
-                        profile_pic,
-                        subfolder=f"hajj/users/{request.user.id}"
-                    )
-                    user.profile_picture = upload_result.get('secure_url')
-                except Exception as e:
-                    return api_response(
-                        success=False,
-                        message="Failed to upload profile picture",
-                        errors={"profile_picture": [str(e)]},
-                        status_code=400
-                    )
-                    user.profile_picture = upload_result.get('secure_url') or upload_result.get('url')
-                except Exception as e:
-                    return api_response(
-                        success=False,
-                        message="Failed to upload profile picture",
-                        errors={"profile_picture": [str(e)]},
-                        status_code=400
-                    )
+        # Handle profile picture upload to Cloudinary
+        profile_pic = serializer.validated_data.get('profile_picture')
             
-            # Update other fields (excluding profile_picture which we handled above)
-            for field, value in serializer.validated_data.items():
-                if field != 'profile_picture':
-                    setattr(user, field, value)
+        if profile_pic:
+            try:
+                upload_result = get_cloudinary_service().upload(
+                    profile_pic,
+                    subfolder=f"hajj/users/{request.user.id}"
+                )
+                user.profile_picture = upload_result.get('secure_url') or upload_result.get('url')
+            except Exception as e:
+                return api_response(
+                    success=False,
+                    message="Failed to upload profile picture",
+                    errors={"profile_picture": [str(e)]},
+                    status_code=400
+                )
+        
+        # Update user fields with validated data
+        validated_data = serializer.validated_data.copy()
+        
+        # Handle profile picture separately (already uploaded above)
+        profile_pic_url = validated_data.pop('profile_picture', None)
+        if profile_pic_url and not user.profile_picture:
+            # Only set if user doesn't have one AND we just uploaded one
+            pass  # Already handled above
+        
+        for field, value in validated_data.items():
+            # Only update if user doesn't already have this field filled (optional)
+            current_value = getattr(user, field, None)
+            if not current_value and value:
+                setattr(user, field, value)
+        
+        user.save()
 
-            user.save()
+        # Ensure step is marked completed
+        registration.completed_steps.add(registration.current_step)
 
-            # Ensure step is marked completed
-            registration.completed_steps.add(registration.current_step)
+        # Create review as PENDING - stays on current step until admin approves
+        RegistrationStepReview.objects.update_or_create(
+            registration=registration,
+            step=registration.current_step,
+            defaults={
+                "status": StepReviewStatus.PENDING,
+                "rejection_reason": None,
+                "reviewed_by": None,
+                "reviewed_at": None
+            }
+        )
 
-            # Create review as PENDING - stays on current step until admin approves
-            RegistrationStepReview.objects.update_or_create(
-                registration=registration,
-                step=registration.current_step,
-                defaults={
-                    "status": StepReviewStatus.PENDING,
-                    "rejection_reason": None,
-                    "reviewed_by": None,
-                    "reviewed_at": None
-                }
-            )
-
-            # DO NOT move to next step - wait for admin approval
-            registration.save(update_fields=["updated_at"])
+        # DO NOT move to next step - wait for admin approval
+        registration.save(update_fields=["updated_at"])
 
         registration.refresh_from_db()
         
@@ -1157,7 +1136,7 @@ class EmergencyContactsView(APIView):
                 "id": 3,
                 "name": "Email Support",
                 "contact_type": "email",
-                "value": "support@assemblytours.com",
+                "value": "support@assemblytravels.com",
                 "description": "Non-urgent inquiries",
             },
             {

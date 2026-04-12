@@ -4,9 +4,9 @@ from django.utils.html import format_html
 from .models import User
 
 # Customize site titles
-admin.site.site_header = "Assembly Tours Admin Dashboard"
-admin.site.site_title = "Assembly Tours Admin Portal"
-admin.site.index_title = "Welcome to Assembly Tours Administration"
+admin.site.site_header = "Assembly Travels Admin Dashboard"
+admin.site.site_title = "Assembly Travels Admin Portal"
+admin.site.index_title = "Welcome to Assembly Travels Administration"
 
 
 @admin.register(User)

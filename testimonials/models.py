@@ -6,7 +6,7 @@ User = get_user_model()
 
 class Testimonial(models.Model):
     author_name = models.CharField(max_length=100)
-    author_image = models.URLField(max_length=500, blank=True, null=True)
+    author_image = models.ImageField(upload_to="assemblytour/testimonials/", blank=True, null=True)
     content = models.TextField()
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

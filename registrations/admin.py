@@ -149,6 +149,7 @@ class TravelDocumentInline(admin.StackedInline):
     min_num = 0
 
     def has_add_permission(self, request, obj=None):
+        # Only allow if visa is ready and less than 3 docs exist
         if obj and obj.visa_status != VisaStatus.READY:
             return False
         if obj and obj.travel_documents.count() >= 3:
@@ -171,11 +172,10 @@ class TravelDocumentInline(admin.StackedInline):
         return super().has_delete_permission(request, obj)
 
     def get_extra(self, request, obj=None):
+        # Allow adding new documents
         if not obj:
             return 0
         if obj.visa_status != VisaStatus.READY:
-            return 0
-        if obj.travel_documents.count() >= 3:
             return 0
         return 1
 
@@ -270,11 +270,10 @@ class TravelDocumentInline(admin.StackedInline):
             else:
                 raise ValidationError(f"A {obj.get_doc_type_display()} document already exists for this registration.")
         
-        # Check current doc count BEFORE saving to determine if this is the 3rd doc
-        current_count = obj.registration.travel_documents.count()
-        is_third_doc = current_count == 2  # If already 2, this will be the 3rd after save
-        
         super(TravelDocumentInline, self).save_model(request, obj, form, change)
+        
+        # Check AFTER save - if we now have 3 documents and all required types
+        new_count = obj.registration.travel_documents.count()
         
         # Update ticket_info and hotel_info from travel documents
         reg = obj.registration
@@ -308,9 +307,9 @@ class TravelDocumentInline(admin.StackedInline):
         
         reg.save(update_fields=['ticket_info', 'hotel_info'])
         
-        # Move to next step if this was the 3rd document
-        if is_third_doc:
-            print(f"DEBUG: About to complete travel documents step for registration {reg.id}. Current count was {current_count}")
+        # Move to next step if we now have 3 documents after save and all required types exist
+        if new_count == 3:
+            print(f"DEBUG: About to complete travel documents step for registration {reg.id}. New doc count is {new_count}")
             try:
                 result = complete_travel_documents_step(reg)
                 print(f"DEBUG: complete_travel_documents_step result: {result}")
@@ -710,19 +709,34 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
                 pic
             )
         
+        # Format passport expiry date if exists
+        passport_expiry = str(u.passport_expiry) if u.passport_expiry else "-"
+        
         bio_html = format_html(
             "<b>Name:</b> {}<br>"
             "<b>Phone:</b> {}<br>"
             "<b>Email:</b> {}<br>"
+            "<b>Gender:</b> {}<br>"
+            "<b>Date of Birth:</b> {}<br>"
+            "<b>Nationality:</b> {}<br>"
+            "<b>State of Origin:</b> {}<br>"
             "<b>Passport #:</b> {}<br>"
-            "<b>DOB:</b> {}<br>"
-            "<b>Address:</b> {}",
+            "<b>Passport Expiry:</b> {}<br>"
+            "<b>Address:</b> {}<br>"
+            "<b>Emergency Contact Name:</b> {}<br>"
+            "<b>Emergency Contact Phone:</b> {}",
             name,
             u.phone,
             u.email or "-",
-            u.passport_number or "-",
+            u.gender.capitalize() if u.gender else "-",
             u.date_of_birth or "-",
-            u.address or "-"
+            u.nationality or "-",
+            u.state_of_origin or "-",
+            u.passport_number or "-",
+            passport_expiry,
+            u.address or "-",
+            u.emergency_contact_name or "-",
+            u.emergency_contact_phone or "-"
         )
         
         return format_html("{}<br>{}", profile_html, bio_html)
@@ -866,19 +880,24 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             reason = request.POST.get("reason", "").strip()
             if not reason:
                 self.message_user(request, "Rejection reason is required.", messages.ERROR)
-            else:
-                step = obj.current_step
-                review, _ = RegistrationStepReview.objects.get_or_create(
-                    registration=obj,
-                    step=step,
-                    defaults={"reviewed_by": request.user}
-                )
-                review.reject(request.user, reason)
-                # Keep status as PENDING so user can resubmit
-                obj.status = RegistrationStatus.PENDING
-                obj.save()
-                self._send_user_notification(obj, step.title, approved=False, rejection_reason=reason)
-                self.message_user(request, f"Bio-data rejected: {reason}. User can resubmit.", messages.WARNING)
+                return super().response_change(request, obj)
+            
+            step = obj.current_step
+            
+            # Remove from completed_steps so status shows "rejected"
+            obj.completed_steps.remove(step)
+            
+            review, _ = RegistrationStepReview.objects.get_or_create(
+                registration=obj,
+                step=step,
+                defaults={"reviewed_by": request.user}
+            )
+            review.reject(request.user, reason)
+            # Keep status as PENDING so user can resubmit
+            obj.status = RegistrationStatus.PENDING
+            obj.save()
+            self._send_user_notification(obj, step.title, approved=False, rejection_reason=reason)
+            self.message_user(request, f"Bio-data rejected: {reason}. User can resubmit.", messages.WARNING)
             return super().response_change(request, obj)
 
         # Step 4 - document_review approval (if step still exists) - move to next step
@@ -976,21 +995,20 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             reason = request.POST.get("reason", "").strip()
             if not reason:
                 self.message_user(request, "Rejection reason is required.", messages.ERROR)
-                return super().response_change(request, obj)
-            
-            step = RegistrationStep.objects.filter(code="payment_details").first()
-            if step:
-                review, _ = RegistrationStepReview.objects.get_or_create(
-                    registration=obj,
-                    step=step,
-                    defaults={"reviewed_by": request.user}
-                )
-                review.reject(request.user, reason)
-                # Keep status as PENDING so user can resubmit
-                obj.status = RegistrationStatus.PENDING
-                obj.save()
-                self._send_user_notification(obj, step.title, approved=False, rejection_reason=reason)
-                self.message_user(request, f"Payment rejected: {reason}. User can resubmit.", messages.WARNING)
+            else:
+                step = RegistrationStep.objects.filter(code="payment_details").first()
+                if step:
+                    review, _ = RegistrationStepReview.objects.get_or_create(
+                        registration=obj,
+                        step=step,
+                        defaults={"reviewed_by": request.user}
+                    )
+                    review.reject(request.user, reason)
+                    # Keep status as PENDING so user can resubmit
+                    obj.status = RegistrationStatus.PENDING
+                    obj.save()
+                    self._send_user_notification(obj, step.title, approved=False, rejection_reason=reason)
+                    self.message_user(request, f"Payment rejected: {reason}. User can resubmit.", messages.WARNING)
             return super().response_change(request, obj)
 
         return super().response_change(request, obj)

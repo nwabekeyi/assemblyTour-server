@@ -65,8 +65,8 @@ class User(AbstractUser):
     # Make username optional
     username = models.CharField(max_length=150, blank=True, null=True, unique=True)
 
-    # Required fields
-    phone = models.CharField(max_length=20, unique=True)
+    # Required fields - make phone optional since not all users have phone
+    phone = models.CharField(max_length=20, unique=True, blank=True, null=True)
 
     # Optional personal info
     first_name = models.CharField(max_length=30, blank=True, null=True)

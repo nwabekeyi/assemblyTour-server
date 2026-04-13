@@ -1,6 +1,6 @@
 from django import template
 
-from registrations.models import HajjRegistration
+from registrations.models import Registration
 
 
 register = template.Library()
@@ -9,7 +9,7 @@ register = template.Library()
 def _safe_count(**filters):
     """Return counts without breaking the admin dashboard if migrations are pending."""
     try:
-        return HajjRegistration.objects.filter(**filters).count()
+        return Registration.objects.filter(**filters).count()
     except Exception:
         return 0
 

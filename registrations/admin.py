@@ -12,7 +12,7 @@ from .models import (
     StepReviewStatus,
     VisaStatus,
     JourneyPresenceStatus,
-    HajjRegistration,
+    Registration,
     RegistrationStepReview,
     TravelDocument,
     TravelDocumentType,
@@ -43,9 +43,9 @@ class RegistrationStepAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None): return False
 
 
-class HajjRegistrationAdminForm(forms.ModelForm):
+class RegistrationAdminForm(forms.ModelForm):
     class Meta:
-        model = HajjRegistration
+        model = Registration
         fields = "__all__"
 
     def clean(self):
@@ -67,7 +67,25 @@ class TravelDocumentForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['doc_type'].choices = [('', '-----------')] + list(TravelDocumentType.choices)
+        
+        # Get existing doc types for this registration
+        existing_doc_types = []
+        if self.instance and self.instance.registration_id:
+            existing_doc_types = list(
+                TravelDocument.objects.filter(
+                    registration_id=self.instance.registration_id
+                ).values_list('doc_type', flat=True)
+            )
+        
+        # Filter out already added doc types
+        available_choices = [
+            (choice[0], choice[1]) 
+            for choice in TravelDocumentType.choices 
+            if choice[0] not in existing_doc_types
+        ]
+        
+        self.fields['doc_type'].choices = [('', '-----------')] + available_choices
+        
         for field_name in ['visa_number', 'visa_type', 'visa_issue_date', 'visa_expiry_date', 
                            'visa_country', 'visa_port_of_entry', 'airline_name', 'flight_number',
                            'departure_airport', 'arrival_airport', 'departure_date', 'departure_time',
@@ -144,17 +162,29 @@ class TravelDocumentForm(forms.ModelForm):
 class TravelDocumentInline(admin.StackedInline):
     model = TravelDocument
     extra = 0
+    max_num = 3
     form = TravelDocumentForm
     readonly_fields = ("uploaded_by", "uploaded_at")
     min_num = 0
-
+    
     def has_add_permission(self, request, obj=None):
-        # Only allow if visa is ready and less than 3 docs exist
         if obj and obj.visa_status != VisaStatus.READY:
             return False
         if obj and obj.travel_documents.count() >= 3:
             return False
-        return super().has_add_permission(request, obj)
+        return True
+    
+    def get_extra(self, request, obj, **kwargs):
+        if not obj:
+            return 0
+        if obj.visa_status != VisaStatus.READY:
+            return 0
+        if obj.travel_documents.count() >= 3:
+            return 0
+        return 1
+    
+    def get_max_num(self, request, obj, **kwargs):
+        return 3
 
     def has_change_permission(self, request, obj=None):
         if obj and obj.visa_status != VisaStatus.READY:
@@ -276,8 +306,17 @@ class TravelDocumentInline(admin.StackedInline):
         
         super(TravelDocumentInline, self).save_model(request, obj, form, change)
         
-        # Update ticket_info and hotel_info from travel documents
+        # AFTER save, check if we now have exactly 3 documents and trigger transition
         reg = obj.registration
+        doc_count = reg.travel_documents.count()
+        
+        if doc_count == 3:
+            print(f"DEBUG: 3 documents uploaded for registration {reg.id}. Completing travel documents step.")
+            try:
+                result = complete_travel_documents_step(reg)
+                print(f"DEBUG: complete_travel_documents_step result: {result}")
+            except Exception as e:
+                print(f"ERROR completing travel documents step: {e}")
         ticket_doc = reg.travel_documents.filter(doc_type='ticket').first()
         hotel_doc = reg.travel_documents.filter(doc_type='hotel_voucher').first()
         
@@ -307,15 +346,6 @@ class TravelDocumentInline(admin.StackedInline):
             reg.hotel_info = json.dumps(hotel_info)
         
         reg.save(update_fields=['ticket_info', 'hotel_info'])
-        
-        # Move to next step if this is the 3rd document (was 2 before, now 3 after save)
-        if is_third_doc:
-            print(f"DEBUG: About to complete travel documents step for registration {reg.id}. Adding 3rd doc.")
-            try:
-                result = complete_travel_documents_step(reg)
-                print(f"DEBUG: complete_travel_documents_step result: {result}")
-            except Exception as e:
-                print(f"ERROR completing travel documents step: {e}")
 
 
 # -----------------------------
@@ -358,11 +388,11 @@ class RegistrationStepReviewInline(admin.TabularInline):
 
 
 # -----------------------------
-# HajjRegistration Admin
+# Registration Admin
 # -----------------------------
-@admin.register(HajjRegistration)
-class HajjRegistrationAdmin(admin.ModelAdmin):
-    form = HajjRegistrationAdminForm
+@admin.register(Registration)
+class RegistrationAdmin(admin.ModelAdmin):
+    form = RegistrationAdminForm
     list_display = ("get_user_display", "get_current_step_display", "status", "visa_status", "updated_at")
     list_filter = ("status", "visa_status", "current_step")
     search_fields = ("user__username", "user__email", "user__phone")
@@ -654,7 +684,7 @@ class HajjRegistrationAdmin(admin.ModelAdmin):
             obj.current_step = next_step
 
         obj.save(update_fields=["current_step", "updated_at"])
-        print(f"HajjRegistrationAdmin: Travel docs complete, moved to {next_step}")
+        print(f"RegistrationAdmin: Travel docs complete, moved to {next_step}")
         self.message_user(
             request,
             "Travel documents completed! Registration advanced to the next step.",

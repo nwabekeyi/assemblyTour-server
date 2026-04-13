@@ -7,7 +7,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import (
-    HajjRegistration,
+    Registration,
     RegistrationStatus,
     RegistrationStep,
     StepReviewStatus,
@@ -53,7 +53,7 @@ def ensure_registration_status_consistency(registration, total_active_steps=None
 
 
 def _aggregate_user_stats(user_id):
-    registrations = HajjRegistration.objects.filter(user_id=user_id).prefetch_related('completed_steps', 'current_step')
+    registrations = Registration.objects.filter(user_id=user_id).prefetch_related('completed_steps', 'current_step')
     total = registrations.count()
     total_active_steps = RegistrationStep.objects.filter(is_active=True).count()
 
@@ -87,7 +87,7 @@ def refresh_user_dashboard_stats(user_id):
 
 
 def refresh_all_dashboard_stats():
-    user_ids = User.objects.filter(hajj_registration__isnull=False).values_list("id", flat=True)
+    user_ids = User.objects.filter(registrations__isnull=False).values_list("id", flat=True)
     for user_id in user_ids:
         refresh_user_dashboard_stats(user_id)
 
@@ -316,7 +316,7 @@ def start_new_registration(user, package):
         return None
 
     # Return error if user already has an active registration (not completed/failed)
-    existing = HajjRegistration.objects.filter(
+    existing = Registration.objects.filter(
         user=user
     ).exclude(
         status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]
@@ -326,7 +326,7 @@ def start_new_registration(user, package):
         return {"error": "active_exists", "registration": existing}
 
     # Get user's old completed/failed registration to copy details from
-    old_registration = HajjRegistration.objects.filter(
+    old_registration = Registration.objects.filter(
         user=user,
         status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]
     ).first()
@@ -338,7 +338,7 @@ def start_new_registration(user, package):
         return {"error": "no_steps"}
 
     with transaction.atomic():
-        registration = HajjRegistration.objects.create(
+        registration = Registration.objects.create(
             user=user,
             package=package,
             current_step=payment_step,

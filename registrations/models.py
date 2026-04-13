@@ -70,11 +70,11 @@ class JourneyPresenceStatus(models.TextChoices):
     DID_NOT_ARRIVE = "did_not_arrive", "Did Not Arrive"
 
 
-class HajjRegistration(models.Model):
+class Registration(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="hajj_registration"
+        related_name="registrations"
     )
 
     passport_document = models.URLField(max_length=500, null=True, blank=True)
@@ -154,7 +154,7 @@ class TravelDocumentType(models.TextChoices):
 
 class TravelDocument(models.Model):
     registration = models.ForeignKey(
-        HajjRegistration,
+        Registration,
         on_delete=models.CASCADE,
         related_name="travel_documents"
     )
@@ -208,11 +208,18 @@ class TravelDocument(models.Model):
     class Meta:
         unique_together = [("registration", "doc_type")]
 
-    def __str__(self):
-        return f"{self.registration.user.email} - {self.doc_type} - {self.title}"
-
     def clean(self):
         from django.core.exceptions import ValidationError
+        
+        # Enforce max 3 documents per registration at DB level
+        if self.registration_id:
+            current_count = TravelDocument.objects.filter(
+                registration_id=self.registration_id
+            ).exclude(pk=self.pk).count()
+            
+            if current_count >= 3:
+                raise ValidationError("Maximum of 3 travel documents allowed per registration.")
+        
         if self.doc_type == TravelDocumentType.VISA:
             required_fields = ['visa_number', 'visa_type', 'visa_issue_date', 'visa_expiry_date', 'visa_country', 'visa_port_of_entry']
             missing = [f for f in required_fields if not getattr(self, f)]
@@ -236,7 +243,7 @@ class TravelDocument(models.Model):
 # -----------------------------
 class PaymentDetail(models.Model):
     registration = models.ForeignKey(
-        HajjRegistration,
+        Registration,
         on_delete=models.CASCADE,
         related_name="payment_details"
     )
@@ -263,7 +270,7 @@ class PaymentDetail(models.Model):
 # -----------------------------
 class RegistrationAdditionalDocument(models.Model):
     registration = models.ForeignKey(
-        HajjRegistration, 
+        Registration, 
         on_delete=models.CASCADE, 
         related_name="additional_documents"
     )
@@ -286,7 +293,7 @@ class StepReviewStatus(models.TextChoices):
 
 class RegistrationStepReview(models.Model):
     registration = models.ForeignKey(
-        HajjRegistration, 
+        Registration, 
         on_delete=models.CASCADE, 
         related_name="step_reviews"
     )
@@ -379,7 +386,7 @@ class SupportTicket(models.Model):
         related_name="support_tickets"
     )
     registration = models.ForeignKey(
-        HajjRegistration,
+        Registration,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

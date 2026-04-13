@@ -1,7 +1,7 @@
 # urls.py
 from django.urls import path
 from .views import (
-    MyHajjRegistrationView,
+    MyRegistrationView,
     AccountSetupView,
     RegistrationFormView,
     DocumentUploadView,
@@ -29,7 +29,7 @@ from .views import (
 
 urlpatterns = [
     # ─── Current / existing endpoint ─────────────────────────────────────
-    path('registration/my/', MyHajjRegistrationView.as_view(), name='my-hajj-registration'),
+    path('registration/my/', MyRegistrationView.as_view(), name='my-registration'),
 
     # ─── Step 1 – Change username & password ─────────────────────────────
     path('hajj/step/account-setup/', AccountSetupView.as_view(), name='hajj-account-setup'),

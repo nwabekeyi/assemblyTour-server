@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from datetime import date, timedelta
 
 from .models import (
-    HajjRegistration,
+    Registration,
     RegistrationStep,
     RegistrationStepReview,
     TravelDocument,
@@ -44,7 +44,7 @@ class RegistrationStepSerializer(serializers.ModelSerializer):
 # -----------------------------
 # USER REGISTRATION SERIALIZER
 # -----------------------------
-class UserHajjRegistrationSerializer(serializers.ModelSerializer):
+class UserRegistrationSerializer(serializers.ModelSerializer):
     current_step = RegistrationStepSerializer(read_only=True)
     completed_steps = RegistrationStepSerializer(many=True, read_only=True)
 
@@ -67,7 +67,7 @@ class UserHajjRegistrationSerializer(serializers.ModelSerializer):
     package_price = serializers.SerializerMethodField()
 
     class Meta:
-        model = HajjRegistration
+        model = Registration
         fields = [
             'id',
             'status',

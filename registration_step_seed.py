@@ -150,7 +150,7 @@ for step in REGISTRATION_STEPS:
 # -----------------------------
 # CLEANUP: Remove steps not in our defined list
 # -----------------------------
-from registrations.models import HajjRegistration
+from registrations.models import Registration
 
 known_codes = {step["code"] for step in REGISTRATION_STEPS}
 deleted = 0
@@ -161,7 +161,7 @@ fallback_step = RegistrationStep.objects.filter(code__in=known_codes).order_by('
 for step in RegistrationStep.objects.all():
     if step.code not in known_codes:
         if fallback_step:
-            updated = HajjRegistration.objects.filter(current_step=step).update(current_step=fallback_step)
+            updated = Registration.objects.filter(current_step=step).update(current_step=fallback_step)
             if updated:
                 print(f"⚠️ Updated {updated} registrations to '{fallback_step.code}'")
         print(f"🗑️Removing unknown step: {step.code} (order {step.order})")

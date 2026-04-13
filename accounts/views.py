@@ -14,7 +14,7 @@ from core.utils.api_response import api_response
 from core.utils.validators import validate_with_pydantic
 from packages.models import Package
 from django.db import transaction
-from registrations.models import HajjRegistration, RegistrationStep, RegistrationStatus
+from registrations.models import Registration, RegistrationStep, RegistrationStatus
 
 
 User = get_user_model()
@@ -58,7 +58,7 @@ class AuthView(generics.GenericAPIView):
 
         # 2b️⃣ Check for existing active registration using email
         user_email = data.get('email', '').lower()
-        existing = HajjRegistration.objects.filter(
+        existing = Registration.objects.filter(
             user__email=user_email
         ).exclude(
             status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]
@@ -89,14 +89,14 @@ class AuthView(generics.GenericAPIView):
             temp_password = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
 
             user = User.objects.create_user(
-                phone="",
+                phone=None,
                 email=user_email,
                 username=username,
                 password=temp_password
             )
 
             first_step = RegistrationStep.objects.get(order=1)
-            HajjRegistration.objects.create(user=user, current_step=first_step, package=package)
+            Registration.objects.create(user=user, current_step=first_step, package=package)
 
             refresh = RefreshToken.for_user(user)
 

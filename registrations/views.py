@@ -7,7 +7,7 @@ from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 from .models import (
-    HajjRegistration,
+    Registration,
     RegistrationStep,
     RegistrationStatus,
     StepReviewStatus,
@@ -21,7 +21,7 @@ from .models import (
     PaymentDetail,
 )
 from .serializers import (
-    UserHajjRegistrationSerializer,
+    UserRegistrationSerializer,
     AccountSetupSerializer,
     RegistrationFormSerializer,
     DocumentUploadSerializer,
@@ -63,12 +63,12 @@ def can_user_proceed(registration) -> bool:
     return True
 
 
-class MyHajjRegistrationView(APIView):
+class MyRegistrationView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         try:
-            registration = HajjRegistration.objects.select_related(
+            registration = Registration.objects.select_related(
                 'current_step', 'package'
             ).prefetch_related(
                 'completed_steps'
@@ -76,7 +76,7 @@ class MyHajjRegistrationView(APIView):
                 status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]
             ).exclude(status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]).get(user=request.user)
 
-            serializer = UserHajjRegistrationSerializer(registration)
+            serializer = UserRegistrationSerializer(registration)
 
             return api_response(
                 success=True,
@@ -85,7 +85,7 @@ class MyHajjRegistrationView(APIView):
                 status_code=status.HTTP_200_OK,
             )
 
-        except HajjRegistration.DoesNotExist:
+        except Registration.DoesNotExist:
             return api_response(
                 success=True,
                 message="No active registration",
@@ -100,10 +100,10 @@ class AccountSetupView(APIView):
 
     def post(self, request):
         try:
-            registration = HajjRegistration.objects.select_related(
+            registration = Registration.objects.select_related(
                 'current_step'
             ).exclude(status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]).get(user=request.user)
-        except HajjRegistration.DoesNotExist:
+        except Registration.DoesNotExist:
             return api_response(success=False, message="Registration not found", status_code=404)
 
         if registration.current_step.code != "account_setup":
@@ -152,7 +152,7 @@ class AccountSetupView(APIView):
         return api_response(
             success=True,
             message="Account setup completed and approved successfully",
-            data=UserHajjRegistrationSerializer(registration).data
+            data=UserRegistrationSerializer(registration).data
         )
 
 
@@ -163,11 +163,11 @@ class RegistrationFormView(APIView):
 
     def get(self, request):
         try:
-            registration = HajjRegistration.objects.filter(
+            registration = Registration.objects.filter(
                 user=request.user,
                 status__in=['not_started', 'pending', 'in_progress']
             ).select_related('current_step').first()
-        except HajjRegistration.DoesNotExist:
+        except Registration.DoesNotExist:
             return api_response(
                 success=False,
                 message="Registration not found",
@@ -204,10 +204,10 @@ class RegistrationFormView(APIView):
 
     def patch(self, request):
         try:
-            registration = HajjRegistration.objects.select_related(
+            registration = Registration.objects.select_related(
                 'current_step'
             ).exclude(status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]).get(user=request.user)
-        except HajjRegistration.DoesNotExist:
+        except Registration.DoesNotExist:
             return api_response(
                 success=False,
                 message="Registration not found",
@@ -328,20 +328,20 @@ class RegistrationFormView(APIView):
         return api_response(
             success=True,
             message="Bio-data updated successfully",
-            data=UserHajjRegistrationSerializer(registration).data,
+            data=UserRegistrationSerializer(registration).data,
             status_code=status.HTTP_200_OK
         )
 
 
-# --- STEP 3: Updated to save to HajjRegistration ---
+# --- STEP 3: Updated to save to Registration ---
 class DocumentUploadView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
         try:
-            registration = HajjRegistration.objects.select_related('current_step').exclude(status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]).get(user=request.user)
-        except HajjRegistration.DoesNotExist:
+            registration = Registration.objects.select_related('current_step').exclude(status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]).get(user=request.user)
+        except Registration.DoesNotExist:
             return api_response(success=False, message="Registration not found", status_code=404)
 
         if registration.current_step.code != "document_upload":
@@ -428,7 +428,7 @@ class DocumentUploadView(APIView):
         return api_response(
             success=True,
             message="Documents uploaded. Please wait for admin review.",
-            data=UserHajjRegistrationSerializer(registration).data
+            data=UserRegistrationSerializer(registration).data
         )
 
 
@@ -452,8 +452,8 @@ class AdminApproveDocumentReviewView(APIView):
             return api_response(success=False, message="Invalid action", status_code=400)
 
         try:
-            registration = HajjRegistration.objects.select_related('current_step', 'user').get(id=registration_id)
-        except HajjRegistration.DoesNotExist:
+            registration = Registration.objects.select_related('current_step', 'user').get(id=registration_id)
+        except Registration.DoesNotExist:
             return api_response(success=False, message="Registration not found", status_code=404)
 
         if registration.current_step.code != "document_upload":
@@ -512,7 +512,7 @@ class AdminApproveDocumentReviewView(APIView):
         return api_response(
             success=True,
             message=message,
-            data=UserHajjRegistrationSerializer(registration).data
+            data=UserRegistrationSerializer(registration).data
         )
 
 
@@ -531,8 +531,8 @@ class AdminUploadTravelDocumentView(APIView):
             return api_response(success=False, message="Admin only", status_code=403)
 
         try:
-            registration = HajjRegistration.objects.get(id=registration_id)
-        except HajjRegistration.DoesNotExist:
+            registration = Registration.objects.get(id=registration_id)
+        except Registration.DoesNotExist:
             return api_response(success=False, message="Registration not found", status_code=404)
 
         serializer = TravelDocumentUploadSerializer(data=request.data)
@@ -621,8 +621,8 @@ class AdminUploadPaymentDetailView(APIView):
             return api_response(success=False, message="Admin only", status_code=403)
 
         try:
-            registration = HajjRegistration.objects.get(id=registration_id)
-        except HajjRegistration.DoesNotExist:
+            registration = Registration.objects.get(id=registration_id)
+        except Registration.DoesNotExist:
             return api_response(success=False, message="Registration not found", status_code=404)
 
         serializer = PaymentDetailUploadSerializer(data=request.data)
@@ -667,8 +667,8 @@ class UserUploadPaymentProofView(APIView):
 
     def post(self, request):
         try:
-            registration = HajjRegistration.objects.exclude(status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]).get(user=request.user)
-        except HajjRegistration.DoesNotExist:
+            registration = Registration.objects.exclude(status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]).get(user=request.user)
+        except Registration.DoesNotExist:
             return api_response(success=False, message="No active registration found", status_code=404)
 
         title = request.data.get("title", "Payment Proof")
@@ -714,8 +714,8 @@ class MyTravelDocumentsView(APIView):
 
     def get(self, request):
         try:
-            registration = HajjRegistration.objects.exclude(status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]).get(user=request.user)
-        except HajjRegistration.DoesNotExist:
+            registration = Registration.objects.exclude(status__in=[RegistrationStatus.COMPLETED, RegistrationStatus.FAILED]).get(user=request.user)
+        except Registration.DoesNotExist:
             return api_response(success=False, message="No active registration found", status_code=404)
 
         travel_docs = registration.travel_documents.all()
@@ -741,13 +741,13 @@ class AdminListRegistrationsView(APIView):
         if not self._is_admin(request.user):
             return api_response(success=False, message="Admin only", status_code=403)
 
-        registrations = HajjRegistration.objects.select_related(
+        registrations = Registration.objects.select_related(
             'user', 'current_step', 'package'
         ).prefetch_related(
             'completed_steps', 'travel_documents'
         ).order_by('-created_at')
 
-        serializer = UserHajjRegistrationSerializer(registrations, many=True)
+        serializer = UserRegistrationSerializer(registrations, many=True)
         return api_response(success=True, data=serializer.data)
 
 
@@ -766,8 +766,8 @@ class AdminUpdateJourneyDetailsView(APIView):
             return api_response(success=False, message="Admin only", status_code=403)
 
         try:
-            registration = HajjRegistration.objects.get(id=registration_id)
-        except HajjRegistration.DoesNotExist:
+            registration = Registration.objects.get(id=registration_id)
+        except Registration.DoesNotExist:
             return api_response(success=False, message="Registration not found", status_code=404)
 
         ticket_info = request.data.get("ticket_info")
@@ -780,7 +780,7 @@ class AdminUpdateJourneyDetailsView(APIView):
 
         registration.save(update_fields=['ticket_info', 'hotel_info', 'updated_at'])
 
-        return api_response(success=True, message="Journey details updated", data=UserHajjRegistrationSerializer(registration).data)
+        return api_response(success=True, message="Journey details updated", data=UserRegistrationSerializer(registration).data)
 
 
 # -----------------------------
@@ -808,8 +808,8 @@ class CreateSupportTicketView(APIView):
         registration = None
         if reg_id := data.get('registration_id'):
             try:
-                registration = HajjRegistration.objects.get(id=reg_id, user=request.user)
-            except HajjRegistration.DoesNotExist:
+                registration = Registration.objects.get(id=reg_id, user=request.user)
+            except Registration.DoesNotExist:
                 pass
 
         ticket = SupportTicket.objects.create(
@@ -894,7 +894,7 @@ class UserStatsView(APIView):
     def get(self, request):
         user = request.user
         
-        all_registrations = HajjRegistration.objects.filter(user=user).order_by('-created_at')
+        all_registrations = Registration.objects.filter(user=user).order_by('-created_at')
 
         stats_record = UserDashboardStats.objects.filter(user=user).first()
         if not stats_record or (timezone.now() - stats_record.last_refresh).total_seconds() > 12 * 3600:
@@ -980,7 +980,7 @@ class RegistrationProgressView(APIView):
         user = request.user
         
         # Only get active registrations (not completed or failed)
-        registration = HajjRegistration.objects.filter(
+        registration = Registration.objects.filter(
             user=user,
             status__in=['not_started', 'pending', 'in_progress']
         ).select_related('current_step', 'package').prefetch_related(
@@ -1168,7 +1168,7 @@ class TravelHistoryView(APIView):
         page = int(request.query_params.get('page', 1))
         page_size = int(request.query_params.get('page_size', 10))
         
-        all_registrations = HajjRegistration.objects.filter(user=user).order_by('-created_at')
+        all_registrations = Registration.objects.filter(user=user).order_by('-created_at')
         total = all_registrations.count()
         
         start = (page - 1) * page_size
@@ -1216,8 +1216,8 @@ class CancelRegistrationView(APIView):
             )
         
         try:
-            registration = HajjRegistration.objects.select_related('user').get(id=registration_id)
-        except HajjRegistration.DoesNotExist:
+            registration = Registration.objects.select_related('user').get(id=registration_id)
+        except Registration.DoesNotExist:
             return api_response(
                 success=False,
                 message="Registration not found",
@@ -1255,7 +1255,7 @@ class StartNewRegistrationView(APIView):
     def post(self, request):
         from packages.models import Package
         from .services import start_new_registration
-        from .serializers import UserHajjRegistrationSerializer
+        from .serializers import UserRegistrationSerializer
 
         package_id = request.data.get("package_id")
         if not package_id:
@@ -1298,7 +1298,7 @@ class StartNewRegistrationView(APIView):
                     status_code=400
                 )
 
-        serializer = UserHajjRegistrationSerializer(result)
+        serializer = UserRegistrationSerializer(result)
         
         # Notify admins
         try:

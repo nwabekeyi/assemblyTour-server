@@ -297,35 +297,37 @@ class RegistrationFormView(APIView):
         # Ensure step is marked completed
         registration.completed_steps.add(registration.current_step)
 
-        # Create review as PENDING - stays on current step until admin approves
+        # Auto-approve immediately - no admin approval needed for registration form
         RegistrationStepReview.objects.update_or_create(
             registration=registration,
             step=registration.current_step,
             defaults={
-                "status": StepReviewStatus.PENDING,
+                "status": StepReviewStatus.APPROVED,
                 "rejection_reason": None,
-                "reviewed_by": None,
-                "reviewed_at": None
+                "reviewed_by": request.user,
+                "reviewed_at": timezone.now()
             }
         )
 
-        # DO NOT move to next step - wait for admin approval
-        registration.save(update_fields=["updated_at"])
+        # Move to next step (payment_details) immediately
+        next_step = RegistrationStep.objects.filter(
+            order__gt=registration.current_step.order,
+            is_active=True
+        ).order_by('order').first()
+
+        if next_step:
+            registration.current_step = next_step
+
+        if registration.status == RegistrationStatus.FAILED:
+            registration.status = RegistrationStatus.PENDING
+
+        registration.save(update_fields=["current_step", "status", "updated_at"])
 
         registration.refresh_from_db()
         
-        # Notify admins
-        try:
-            user_name = f"{request.user.first_name or ''} {request.user.last_name or ''}".strip() or request.user.username or request.user.email
-            admin_emails = list(User.objects.filter(can_approve_registrations=True, is_active=True, email__isnull=False).values_list('email', flat=True))
-            if admin_emails:
-                notify_admins_of_registration_event(admin_emails, 'step_completed', user_name, registration.id, "Bio-Data")
-        except Exception:
-            pass
-        
         return api_response(
             success=True,
-            message="Bio-data updated and submitted for admin review",
+            message="Bio-data updated successfully",
             data=UserHajjRegistrationSerializer(registration).data,
             status_code=status.HTTP_200_OK
         )
@@ -482,10 +484,13 @@ class AdminApproveDocumentReviewView(APIView):
             registration.save(update_fields=['status', 'current_step', 'updated_at'])
             message = "Documents approved. Registration moved to next step."
 
-            # Send approval email
-            from core.services.email_service import send_step_approved_email
-            if registration.user.email:
-                send_step_approved_email(registration.user.email, step.title, registration.id)
+            # Send approval email (non-blocking)
+            try:
+                from core.services.email_service import send_step_approved_email
+                if registration.user.email:
+                    send_step_approved_email(registration.user.email, step.title, registration.id)
+            except Exception:
+                pass  # Don't crash if email fails
 
         else:
                 if not reason:
@@ -495,10 +500,13 @@ class AdminApproveDocumentReviewView(APIView):
                 registration.save(update_fields=['status', 'updated_at'])
                 message = f"Documents rejected: {reason}"
 
-                # Send rejection email
-                from core.services.email_service import send_step_rejected_email
-                if registration.user.email:
-                    send_step_rejected_email(registration.user.email, step.title, registration.id)
+                # Send rejection email (non-blocking)
+                try:
+                    from core.services.email_service import send_step_rejected_email
+                    if registration.user.email:
+                        send_step_rejected_email(registration.user.email, step.title, registration.id)
+                except Exception:
+                    pass  # Don't crash if email fails
 
         registration.refresh_from_db()
         return api_response(

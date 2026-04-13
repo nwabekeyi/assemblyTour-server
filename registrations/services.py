@@ -170,17 +170,11 @@ def complete_travel_documents_step(registration):
 
     print(f"complete_travel_documents_step: next_step: {next_step}, current_step: {registration.current_step}, travel_step.order: {travel_step.order}")
 
-    if (
-        next_step
-        and registration.current_step
-        and registration.current_step.order <= travel_step.order
-    ):
+    if next_step:
         registration.current_step = next_step
         print(f"complete_travel_documents_step: Setting current_step to {next_step}")
-    else:
-        print(f"complete_travel_documents_step: NOT setting current_step. next_step={next_step}, current_step={registration.current_step}")
 
-    registration.save(update_fields=["current_step", "updated_at"])
+    registration.save(update_fields=["current_step", "status", "updated_at"])
 
     return travel_step
 

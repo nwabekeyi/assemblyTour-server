@@ -314,9 +314,12 @@ class TravelDocumentInline(admin.StackedInline):
             print(f"DEBUG: 3 documents uploaded for registration {reg.id}. Completing travel documents step.")
             try:
                 result = complete_travel_documents_step(reg)
-                print(f"DEBUG: complete_travel_documents_step result: {result}")
+                reg.refresh_from_db()
+                print(f"DEBUG: complete_travel_documents_step result: {result}, current_step: {reg.current_step}")
             except Exception as e:
                 print(f"ERROR completing travel documents step: {e}")
+        
+        # Update ticket and hotel info from travel documents
         ticket_doc = reg.travel_documents.filter(doc_type='ticket').first()
         hotel_doc = reg.travel_documents.filter(doc_type='hotel_voucher').first()
         
@@ -345,7 +348,9 @@ class TravelDocumentInline(admin.StackedInline):
             }
             reg.hotel_info = json.dumps(hotel_info)
         
-        reg.save(update_fields=['ticket_info', 'hotel_info'])
+        # Use transaction.on_commit to ensure this runs after all saves complete
+        from django.db import transaction
+        transaction.on_commit(lambda: reg.save(update_fields=['ticket_info', 'hotel_info', 'current_step', 'status', 'updated_at']))
 
 
 # -----------------------------

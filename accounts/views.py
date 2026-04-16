@@ -46,13 +46,7 @@ class AuthView(generics.GenericAPIView):
     # Registration logic
     # -----------------------
     def _register(self, data):
-        # 1️⃣ Turnstile verification
-        turnstile_secret = os.getenv("CLOUDFLARE_SECRET_KEY")
-        token = data.get("turnstileToken")
-        if not token:
-            return api_response(False, "Turnstile token is missing", None, {"detail": "No token"}, 400)
-
-        # 2️⃣ Package
+        # Package
         package_id = data.get("package_id")
         package = Package.objects.get(id=package_id)
 

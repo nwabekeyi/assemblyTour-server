@@ -10,7 +10,6 @@ class AuthData(BaseModel):
     email: Optional[Annotated[str, Field(max_length=254)]]
     password: Optional[Annotated[str, Field(min_length=6)]]
     refresh: Optional[str]
-    turnstileToken: Optional[str]
     package_id: Optional[int]
 
     # ✅ Email validation

@@ -19,7 +19,6 @@ class AuthSerializer(serializers.Serializer):
     email = serializers.CharField(required=False)
     password = serializers.CharField(write_only=True, required=False)
     refresh = serializers.CharField(write_only=True, required=False)
-    turnstileToken = serializers.CharField(write_only=True, required=False)
     package_id = serializers.IntegerField(write_only=True, required=False)
 
     def validate(self, attrs):

@@ -472,7 +472,7 @@ class ManasikGuidance(models.Model):
         default=ManasikGuidanceType.GENERAL
     )
     content = models.TextField()
-    icon = models.CharField(max_length=10, default="📖")
+    icon = models.ImageField(upload_to='manasik_icons/', blank=True, null=True)
     order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -219,12 +219,13 @@ class RegistrationFormSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     first_name = serializers.CharField(max_length=30, required=True)
     last_name = serializers.CharField(max_length=30, required=True)
+    phone = serializers.CharField(max_length=20, required=True)
     date_of_birth = serializers.DateField(required=True)
     gender = serializers.ChoiceField(
         choices=[('male', 'Male'), ('female', 'Female')],
         required=True
     )
-    profile_picture = serializers.FileField(required=True, max_length=5 * 1024 * 1024)  # 5MB max
+    profile_picture = serializers.FileField(required=False, max_length=5 * 1024 * 1024)  # 5MB max
     nationality = serializers.CharField(max_length=50, required=True)
     state_of_origin = serializers.CharField(max_length=50, required=False)
     passport_number = serializers.CharField(max_length=50, required=True)

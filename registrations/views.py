@@ -187,6 +187,7 @@ class RegistrationFormView(APIView):
             'email': user.email or "",
             'first_name': user.first_name or "",
             'last_name': user.last_name or "",
+            'phone': user.phone or "",
             'date_of_birth': user.date_of_birth.isoformat() if user.date_of_birth else None,
             'gender': user.gender or "",
             'profile_picture': user.profile_picture.url if user.profile_picture else None,
@@ -197,7 +198,6 @@ class RegistrationFormView(APIView):
             'address': user.address or "",
             'emergency_contact_name': user.emergency_contact_name or "",
             'emergency_contact_phone': user.emergency_contact_phone or "",
-            'phone': user.phone or "",
         }
 
         return api_response(success=True, data=user_data)

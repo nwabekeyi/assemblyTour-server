@@ -1,7 +1,9 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
+from django import http
 from .models import User
+from registrations.models import UserDashboardStats
 
 # Customize site titles
 admin.site.site_header = "Assembly Travels Admin Dashboard"
@@ -80,3 +82,14 @@ class CustomUserAdmin(UserAdmin):
                 obj.profile_picture, obj.profile_picture
             )
         return "(no profile picture)"
+
+    def delete_model(self, request, obj):
+        """Delete dashboard stats before deleting user."""
+        UserDashboardStats.objects.filter(user=obj).delete()
+        obj.delete()
+
+    def delete_queryset(self, request, queryset):
+        """Handle bulk delete."""
+        for obj in queryset:
+            UserDashboardStats.objects.filter(user=obj).delete()
+        queryset.delete()

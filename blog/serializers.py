@@ -114,7 +114,9 @@ class BlogCommentSerializer(serializers.ModelSerializer):
     def get_user_name(self, obj):
         if not obj.user:
             return "Deleted User"
-    # Use username as fallback, optionally phone
+        # Use full name, fallback to username/phone
+        if obj.user.first_name or obj.user.last_name:
+            return f"{obj.user.first_name or ''} {obj.user.last_name or ''}".strip()
         return obj.user.username or obj.user.phone or "Anonymous"
 
 
@@ -159,7 +161,9 @@ class BlogReplySerializer(serializers.ModelSerializer):
     def get_user_name(self, obj):
         if not obj.user:
             return "Deleted User"
-    # Use username as fallback, optionally phone
+        # Use full name, fallback to username/phone
+        if obj.user.first_name or obj.user.last_name:
+            return f"{obj.user.first_name or ''} {obj.user.last_name or ''}".strip()
         return obj.user.username or obj.user.phone or "Anonymous"
 
     def get_user_img_url(self, obj):

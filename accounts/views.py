@@ -94,17 +94,21 @@ class AuthView(generics.GenericAPIView):
 
             refresh = RefreshToken.for_user(user)
 
-        # 4️⃣ Send login credentials via email (non-blocking)
+        # 4️⃣ Send login credentials via email (async, non-blocking)
+        import threading
+        import logging
         from core.services.email_service import send_login_credentials_email
-        try:
-            send_login_credentials_email(
-                user_email=user_email,
-                username=username,
-                temp_password=temp_password,
-                package_name=package.name
-            )
-        except Exception:
-            pass  # Don't crash if email fails
+        def send_email_async():
+            try:
+                send_login_credentials_email(
+                    user_email=user_email,
+                    username=username,
+                    temp_password=temp_password,
+                    package_name=package.name
+                )
+            except Exception as e:
+                logging.error(f"Failed to send login credentials to {user_email}: {e}")
+        threading.Thread(target=send_email_async, daemon=True).start()
 
         # 5️⃣ Response
         return api_response(

@@ -4,7 +4,7 @@ set -e
 echo "🚀 Starting Assembly Tour Server..."
 
 echo "📦 Installing dependencies..."
-pip install -r requirements.txt
+pip install --break-system-packages -r requirements.txt
 
 echo "🗄️ Running migrations..."
 python manage.py migrate --noinput

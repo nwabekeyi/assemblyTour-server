@@ -22,8 +22,11 @@ USERNAME_FIELD = User.USERNAME_FIELD
 identifier = os.environ.get("DJANGO_SUPERUSER_EMAIL")
 password = os.environ.get("DJANGO_SUPERUSER_PASSWORD")
 
+print(f"DEBUG: DJANGO_SUPERUSER_EMAIL={identifier}")
+
 if not identifier or not password:
     print("Superuser env vars not set. Skipping superuser creation.")
+    print("Available env vars:", list(os.environ.keys()))
     sys.exit(0)
 
 lookup = {USERNAME_FIELD: identifier}

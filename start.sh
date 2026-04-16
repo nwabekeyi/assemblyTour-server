@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 echo "🚀 Starting Assembly Tour Server..."
 
@@ -10,7 +9,7 @@ echo "🗄️ Running migrations..."
 python manage.py migrate --noinput || true
 
 echo "👤 Creating superuser..."
-python create_super_admin.py || true
+python create_super_admin.py
 
 echo "📝 Seeding registration steps..."
 python registration_step_seed.py || true

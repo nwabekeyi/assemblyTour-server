@@ -7,19 +7,19 @@ echo "📦 Installing dependencies..."
 pip install --break-system-packages -r requirements.txt
 
 echo "🗄️ Running migrations..."
-python manage.py migrate --noinput
+python manage.py migrate --noinput || true
 
 echo "👤 Creating superuser..."
 python create_super_admin.py || true
 
 echo "📝 Seeding registration steps..."
-python registration_step_seed.py
+python registration_step_seed.py || true
 
 echo "👤 Seeding test user..."
 python user_seed.py || true
 
 echo "📁 Collecting static files..."
-python manage.py collectstatic --noinput
+python manage.py collectstatic --noinput || true
 
 echo "✅ All seeds completed. Starting gunicorn..."
 exec gunicorn config.wsgi:application --bind 0.0.0.0:$PORT

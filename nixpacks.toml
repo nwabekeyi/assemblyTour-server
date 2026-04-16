@@ -2,4 +2,4 @@
 nixPkgs = ["python3", "python3Packages.pip"]
 
 [phases.build]
-cmd = "pip install --break-system-packages -r requirements.txt && python manage.py migrate --noinput && python create_super_admin.py && python registration_step_seed.py && python user_seed.py && python manage.py collectstatic --noinput"
+cmd = "pip install --break-system-packages -r requirements.txt"

@@ -114,7 +114,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # your Vite frontend
     "http://127.0.0.1:5173",
     "https://assembly-tour2.vercel.app",
-    "https://www.assemblytravels.com"
+    "https://www.assemblytravels.com",
+    "https://assemblytravels.com",
 
 ]
 

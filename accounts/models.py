@@ -15,7 +15,7 @@ def generate_cuid():
 class UserManager(BaseUserManager):
     use_in_migrations = True
 
-    def create_user(self, phone, password=None, email=None, username=None, **extra_fields):
+    def create_user(self, phone=None, password=None, email=None, username=None, **extra_fields):
         if not phone and not email:
             raise ValueError("Either phone or email is required")
 
@@ -23,7 +23,7 @@ class UserManager(BaseUserManager):
             email = self.normalize_email(email)
 
         user = self.model(
-            phone=phone or "",
+            phone=phone if phone else None,
             email=email,
             username=username,
             **extra_fields
@@ -119,7 +119,7 @@ class User(AbstractUser):
 
     # Auth config
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['phone']
+    REQUIRED_FIELDS = []
 
     objects = UserManager()
 

@@ -14,7 +14,7 @@ load_dotenv()
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = os.getenv("DEBUG") == "True"
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",") if os.getenv("ALLOWED_HOSTS") else []
 
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': os.getenv("CLOUDINARY_CLOUD_NAME"),
@@ -113,7 +113,9 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # your Vite frontend
     "http://127.0.0.1:5173",
-    "https://assembly-tour2.vercel.app"
+    "https://assembly-tour2.vercel.app",
+    "https://www.assemblytravels.com"
+
 ]
 
 # This is crucial for cookies / auth headers
@@ -146,15 +148,27 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+import re
+
+def get_database_config():
+    db_url = os.getenv('DATABASE_URL')
+    if not db_url:
+        raise ValueError("DATABASE_URL environment variable is not set")
+    
+    match = re.match(r'postgres://(?P<user>[^:]+):(?P<password>[^@]+)@(?P<host>[^:]+):(?P<port>\d+)/(?P<name>\S+)', db_url)
+    if match:
+        return {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': match.group('name'),
+            'USER': match.group('user'),
+            'PASSWORD': match.group('password'),
+            'HOST': match.group('host'),
+            'PORT': match.group('port'),
+        }
+    raise ValueError("Invalid DATABASE_URL format")
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        'OPTIONS': {
-            'timeout': 30,
-        },
-    }
+    'default': get_database_config()
 }
 
 AUTH_USER_MODEL = 'accounts.User'

@@ -21,6 +21,7 @@ User = get_user_model()
 password = "testpass123"
 email = "testuser@example.com"
 phone = "+2348000000001"
+username = "testuser"
 
 # Detect login field dynamically (email / phone / etc.)
 USERNAME_FIELD = User.USERNAME_FIELD

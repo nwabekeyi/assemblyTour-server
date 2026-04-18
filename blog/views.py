@@ -158,18 +158,26 @@ class BlogCommentDeleteView(generics.DestroyAPIView):
 
 
 # ───────────────────────────────────────────────
-# LIST COMMENTS BY SLUG (unchanged – context auto-included in ListAPIView)
+# LIST COMMENTS BY SLUG (with pagination)
 # ───────────────────────────────────────────────
 class BlogCommentListBySlugView(generics.ListAPIView):
     serializer_class = BlogCommentSerializer
     permission_classes = [AllowAny]
+    pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
         post = get_object_or_404(BlogPost, slug=self.kwargs["slug"])
         return BlogComment.objects.filter(post=post).order_by("-created_at")
 
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset(), many=True)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            paginated_data = self.get_paginated_response(serializer.data).data
+            return api_response(data=paginated_data, message="Comments fetched successfully")
+
+        serializer = self.get_serializer(queryset, many=True)
         return api_response(data=serializer.data, message="Comments fetched successfully")
 
 

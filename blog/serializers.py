@@ -104,11 +104,12 @@ class BlogCommentSerializer(serializers.ModelSerializer):
             "content",
             "user_name",
             "user_img_url",
+            "user_id",
             "created_at",
             "parent",                   # if using threaded comments
         ]
         read_only_fields = [
-            "id", "created_at", "user_name", "user_img_url", "post"
+            "id", "created_at", "user_name", "user_img_url", "user_id", "post"
         ]
 
     def get_user_name(self, obj):
@@ -119,14 +120,16 @@ class BlogCommentSerializer(serializers.ModelSerializer):
             return f"{obj.user.first_name or ''} {obj.user.last_name or ''}".strip()
         return obj.user.username or obj.user.phone or "Anonymous"
 
+    def get_user_id(self, obj):
+        return obj.user.id if obj.user else None
 
     def get_user_img_url(self, obj):
+        if not obj.user:
+            return None
         request = self.context.get("request")
-        if obj.user and obj.user.profile_picture:
+        if obj.user.profile_picture:
             url = obj.user.profile_picture
             return request.build_absolute_uri(url) if request else url
-
-    # Nice fallback using ui-avatars.com (no extra storage needed)
         name = obj.user.get_full_name() or obj.user.username or "User"
         return f"https://ui-avatars.com/api/?name={name.replace(' ', '+')}&background=random"
 
@@ -152,10 +155,11 @@ class BlogReplySerializer(serializers.ModelSerializer):
             "content",
             "user_name",
             "user_img_url",
+            "user_id",
             "created_at",
         ]
         read_only_fields = [
-            "id", "created_at", "user_name", "user_img_url", "comment"
+            "id", "created_at", "user_name", "user_img_url", "user_id", "comment"
         ]
 
     def get_user_name(self, obj):
@@ -166,13 +170,16 @@ class BlogReplySerializer(serializers.ModelSerializer):
             return f"{obj.user.first_name or ''} {obj.user.last_name or ''}".strip()
         return obj.user.username or obj.user.phone or "Anonymous"
 
+    def get_user_id(self, obj):
+        return obj.user.id if obj.user else None
+
     def get_user_img_url(self, obj):
+        if not obj.user:
+            return None
         request = self.context.get("request")
-        if obj.user and obj.user.profile_picture:
+        if obj.user.profile_picture:
             url = obj.user.profile_picture
             return request.build_absolute_uri(url) if request else url
-
-    # Nice fallback using ui-avatars.com (no extra storage needed)
         name = obj.user.get_full_name() or obj.user.username or "User"
         return f"https://ui-avatars.com/api/?name={name.replace(' ', '+')}&background=random"
 

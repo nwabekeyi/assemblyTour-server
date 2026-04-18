@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "sacredsites",
     "faqs",
     "newsletter",
+    "contact",
     "testimonials",
 ]
 

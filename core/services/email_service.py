@@ -1,6 +1,7 @@
 from django.core.mail import send_mail
 from django.conf import settings
 from django.utils import timezone
+from datetime import timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -282,6 +283,75 @@ def send_login_credentials_email(user_email, username, temp_password, package_na
     if not user_email:
         logger.warning("Cannot send login credentials: no user email")
         return False
+
+    email_subject = "🔐 Your Assembly Travels Login Credentials"
+    email_body = f'''Welcome to Assembly Travels!
+
+Thank you for registering for the {package_name} package.
+
+Here are your login credentials:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+USERNAME: {username}
+PASSWORD: {temp_password}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Please login and change your password immediately for security purposes.
+
+Login URL: https://assemblytravels.com/login
+
+If you did not initiate this registration, please contact support immediately.
+
+Best regards,
+Assembly Travels Team'''
+
+    try:
+        send_mail(
+            subject=email_subject,
+            message=email_body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user_email],
+            fail_silently=False,
+        )
+        logger.info(f"Login credentials sent to {user_email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send login credentials to {user_email}: {str(e)}")
+        return False
+
+
+def send_password_reset_otp_email(user_email, otp):
+    """Send password reset OTP to user email."""
+    if not user_email:
+        logger.warning("Cannot send password reset OTP: no user email")
+        return False
+
+    email_subject = "🔐 Password Reset OTP - Assembly Travels"
+    email_body = f"""Your password reset OTP is: {otp}
+
+This OTP is valid for 10 minutes.
+
+If you did not request a password reset, please ignore this email and ensure your account security.
+
+For your security, never share this OTP with anyone.
+
+Best regards,
+Assembly Travels Team"""
+
+    try:
+        send_mail(
+            subject=email_subject,
+            message=email_body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user_email],
+            fail_silently=False,
+        )
+        logger.info(f"Password reset OTP sent to {user_email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send password reset OTP to {user_email}: {str(e)}")
+        return False
+
 
     email_subject = "🔐 Your Assembly Travels Login Credentials"
     email_body = f'''Welcome to Assembly Travels!

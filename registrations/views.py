@@ -287,9 +287,7 @@ class RegistrationFormView(APIView):
             pass  # Already handled above
         
         for field, value in validated_data.items():
-            # Only update if user doesn't already have this field filled (optional)
-            current_value = getattr(user, field, None)
-            if not current_value and value:
+            if value:
                 setattr(user, field, value)
         
         user.save()
@@ -376,8 +374,6 @@ class DocumentUploadView(APIView):
         registration.passport_document_public_id = passport_upload.get('public_id')
         registration.yellow_card_document = yellow_card_upload.get('secure_url') or yellow_card_upload.get('url')
         registration.yellow_card_document_public_id = yellow_card_upload.get('public_id')
-
-        registration.completed_steps.add(registration.current_step)
 
         # Create review as PENDING - wait for admin approval
         step = registration.current_step

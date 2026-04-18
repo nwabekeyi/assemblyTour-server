@@ -509,11 +509,17 @@ class RegistrationAdmin(admin.ModelAdmin):
                     "description": "Documents uploaded. Approve or Reject below."
                 }))
 
-            # Visa Status - editable
-            fieldsets.append(("Visa Status", {
-                "fields": ("visa_status", "visa_status_notes"),
-                "description": "Update visa status here."
-            }))
+            # Visa Status - only show if user has uploaded both passport and yellow card AND they have been approved
+            has_passport = bool(obj.passport_document)
+            has_yellow_card = bool(obj.yellow_card_document)
+            document_step = RegistrationStep.objects.filter(code="document_upload").first()
+            document_review = obj.step_reviews.filter(step=document_step).first() if document_step else None
+            document_upload_approved = document_review and document_review.status == StepReviewStatus.APPROVED
+            if has_passport and has_yellow_card and document_upload_approved:
+                fieldsets.append(("Visa Status", {
+                    "fields": ("visa_status", "visa_status_notes"),
+                    "description": "Update visa status here."
+                }))
 
             # Travel Documents
             fieldsets.append(("Travel Documents", {
@@ -521,11 +527,14 @@ class RegistrationAdmin(admin.ModelAdmin):
                 "description": "Review travel documents using inline below."
             }))
 
-            # Arrival Status - editable
-            fieldsets.append(("Arrival Status", {
-                "fields": ("journey_presence_status", "journey_presence_notes"),
-                "description": "Update journey presence status."
-            }))
+            # Arrival Status - only show if admin has uploaded all 3 travel documents (visa, ticket, hotel_voucher)
+            required_doc_types = {"visa", "ticket", "hotel_voucher"}
+            uploaded_doc_types = set(obj.travel_documents.values_list("doc_type", flat=True))
+            if required_doc_types.issubset(uploaded_doc_types):
+                fieldsets.append(("Arrival Status", {
+                    "fields": ("journey_presence_status", "journey_presence_notes"),
+                    "description": "Update journey presence status."
+                }))
 
             # System metadata
             fieldsets.append(("System Metadata", {

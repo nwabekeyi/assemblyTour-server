@@ -1,6 +1,9 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 import cuid
+import random
+from django.utils import timezone
+from datetime import timedelta
 
 # ---------------------------
 # CUID generator
@@ -131,4 +134,36 @@ class User(AbstractUser):
         or self.phone
         or f"User #{self.id}"
      )
+
+
+# ---------------------------
+# Password Reset Token Model
+# ---------------------------
+class PasswordResetToken(models.Model):
+    """Stores OTP tokens for password reset verification."""
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='password_reset_tokens'
+    )
+    token = models.CharField(max_length=6)  # 6-digit OTP
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def is_valid(self):
+        """Check if token is still valid (not expired and not used)."""
+        return not self.is_used and timezone.now() < self.expires_at
+
+    def save(self, *args, **kwargs):
+        """Set expiry time on save if not already set."""
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(minutes=10)  # 10 minutes validity
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Token for {self.user.email} - {self.token} (expires: {self.expires_at})"
 

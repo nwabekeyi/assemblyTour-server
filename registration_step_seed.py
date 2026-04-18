@@ -68,17 +68,6 @@ REGISTRATION_STEPS = [
         "order": 4,
     },
     {
-        "code": "document_review",
-        "title": "Passport Review",
-        "description": (
-            "Your documents are being reviewed. You will be notified if "
-            "they are approved or rejected."
-        ),
-        "action_type": StepAction.APPROVAL,
-        "data_scope": StepDataScope.DOCUMENTS,
-        "order": 5,
-    },
-    {
         "code": "visa_status",
         "title": "Visa Status",
         "description": (
@@ -86,7 +75,7 @@ REGISTRATION_STEPS = [
         ),
         "action_type": StepAction.AUTO,
         "data_scope": StepDataScope.DOCUMENTS,
-        "order": 6,
+        "order": 5,
     },
     {
         "code": "travel_documents",
@@ -96,7 +85,7 @@ REGISTRATION_STEPS = [
         ),
         "action_type": StepAction.UPLOAD,
         "data_scope": StepDataScope.DOCUMENTS,
-        "order": 7,
+        "order": 6,
     },
     {
         "code": "arrival_status",
@@ -107,7 +96,7 @@ REGISTRATION_STEPS = [
         ),
         "action_type": StepAction.AUTO,
         "data_scope": StepDataScope.FLIGHT,
-        "order": 8,
+        "order": 7,
     },
 ]
 

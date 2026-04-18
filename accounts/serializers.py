@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from .models import PasswordResetToken
 
 User = get_user_model()
 
@@ -69,3 +70,104 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "emergency_contact_name",
             "emergency_contact_phone",
         ]
+
+
+# ───────────────────────────────
+# Password Reset Serializers
+# ───────────────────────────────
+class RequestPasswordResetSerializer(serializers.Serializer):
+    """Serializer for requesting password reset (sends OTP)."""
+    email = serializers.EmailField(required=True)
+
+    def validate_email(self, value):
+        """Ensure user with this email exists."""
+        if not User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("No account found with this email address.")
+        return value
+
+
+class VerifyPasswordResetOTPSerializer(serializers.Serializer):
+    """Serializer for verifying OTP."""
+    email = serializers.EmailField(required=True)
+    token = serializers.CharField(max_length=6, required=True)
+
+    def validate(self, attrs):
+        email = attrs.get('email')
+        token = attrs.get('token')
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({"email": "Invalid email address."})
+
+        # Check if token exists and is valid
+        reset_token = PasswordResetToken.objects.filter(
+            user=user,
+            token=token,
+            is_used=False
+        ).first()
+
+        if not reset_token:
+            raise serializers.ValidationError({"token": "Invalid or already used token."})
+
+        if not reset_token.is_valid():
+            raise serializers.ValidationError({"token": "Token has expired. Please request a new one."})
+
+        attrs['user'] = user
+        attrs['reset_token'] = reset_token
+        return attrs
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    """Serializer for resetting password after OTP verification."""
+    email = serializers.EmailField(required=True)
+    token = serializers.CharField(max_length=6, required=True)
+    password = serializers.CharField(write_only=True, min_length=8, required=True)
+    password_confirm = serializers.CharField(write_only=True, required=True)
+
+    def validate(self, attrs):
+        email = attrs.get('email')
+        token = attrs.get('token')
+        password = attrs.get('password')
+        password_confirm = attrs.get('password_confirm')
+
+        if password != password_confirm:
+            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({"email": "Invalid email address."})
+
+        # Verify token
+        reset_token = PasswordResetToken.objects.filter(
+            user=user,
+            token=token,
+            is_used=False
+        ).first()
+
+        if not reset_token:
+            raise serializers.ValidationError({"token": "Invalid or already used token."})
+
+        if not reset_token.is_valid():
+            raise serializers.ValidationError({"token": "Token has expired. Please request a new one."})
+
+        attrs['user'] = user
+        attrs['reset_token'] = reset_token
+        return attrs
+
+    def save(self, attrs):
+        """Update user password and mark token as used."""
+        user = attrs['user']
+        reset_token = attrs['reset_token']
+        password = attrs['password']
+
+        user.set_password(password)
+        user.save()
+
+        # Mark token as used
+        reset_token.is_used = True
+        reset_token.save()
+
+        return user
+

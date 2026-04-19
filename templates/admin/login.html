@@ -5,7 +5,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% trans 'Log in' %} - {% trans 'Assembly Travels site admin' %}</title>
+    <title>{% trans 'Log in' %} - {% trans 'Assembly Travels' %}</title>
     <style>
         * {
             margin: 0;
@@ -15,7 +15,8 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            background: #1a365d;
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -25,28 +26,48 @@
 
         .login-container {
             background: white;
-            border-radius: 16px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
             width: 100%;
-            max-width: 420px;
+            max-width: 400px;
             overflow: hidden;
         }
 
         .login-header {
-            background: linear-gradient(135deg, #e94560 0%, #0f3460 100%);
+            background: #1a365d;
             padding: 40px 40px 30px;
             text-align: center;
         }
 
-        .login-header h1 {
-            color: white;
-            font-size: 28px;
-            font-weight: 600;
-            margin-bottom: 8px;
+        .logo-container {
+            background: white;
+            border-radius: 12px;
+            padding: 16px 24px;
+            display: inline-block;
+            margin-bottom: 10px;
         }
 
-        .login-header p {
-            color: rgba(255, 255, 255, 0.8);
+        .logo-container img {
+            width: 140px;
+            height: auto;
+            display: block;
+        }
+
+        .login-header img {
+            width: 180px;
+            height: auto;
+            margin-bottom: 10px;
+        }
+
+        .login-header .company-name {
+            color: white;
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .login-header .subtitle {
+            color: rgba(255, 255, 255, 0.7);
             font-size: 14px;
         }
 
@@ -77,14 +98,14 @@
         }
 
         .form-group input:focus {
-            border-color: #e94560;
-            box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.1);
+            border-color: #1a365d;
+            box-shadow: 0 0 0 3px rgba(26, 54, 93, 0.1);
         }
 
         .submit-btn {
             width: 100%;
             padding: 14px;
-            background: linear-gradient(135deg, #e94560 0%, #0f3460 100%);
+            background: #1a365d;
             color: white;
             border: none;
             border-radius: 8px;
@@ -96,8 +117,7 @@
         }
 
         .submit-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px -10px rgba(233, 69, 96, 0.5);
+            background: #2c4a7c;
         }
 
         .submit-btn:active {
@@ -126,7 +146,7 @@
         }
 
         .help-text a {
-            color: #e94560;
+            color: #1a365d;
             text-decoration: none;
         }
 
@@ -138,8 +158,11 @@
 <body>
     <div class="login-container">
         <div class="login-header">
-            <h1>{% trans 'Welcome Back' %}</h1>
-            <p>{% trans 'Sign in to continue to Admin' %}</p>
+            <div class="logo-container">
+                <img src="{% static 'admin/assemblyTourLogo.png' %}" alt="Assembly Travels Logo">
+            </div>
+            <div class="company-name">Assembly Travels</div>
+            <div class="subtitle">{% trans 'Admin Login' %}</div>
         </div>
         
         <form action="{{ app_path }}" method="post" class="login-form" id="login-form">{% csrf_token %}

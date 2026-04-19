@@ -9,6 +9,7 @@ from registrations.models import UserDashboardStats
 admin.site.site_header = "Assembly Travels Admin Dashboard"
 admin.site.site_title = "Assembly Travels Admin Portal"
 admin.site.index_title = "Welcome to Assembly Travels Administration"
+admin.site.site_url = "https://www.assemblytravels.com"
 
 
 @admin.register(User)
@@ -26,35 +27,67 @@ class CustomUserAdmin(UserAdmin):
             )
         return "No profile picture"
 
-    # Fieldsets for viewing/editing a user
-    fieldsets = (
-        (None, {'fields': ('email', 'username', 'password')}),
-        ('Personal Info', {'fields': (
-            'first_name', 'last_name', 'phone', 'date_of_birth',
-            'gender', 'nationality', 'state_of_origin', 'passport_number', 'passport_expiry',
-            'address', 'emergency_contact_name', 'emergency_contact_phone'
-        )}),
-        ('Profile', {'fields': ('get_profile_picture_link',)}),
-        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'can_approve_registrations', 'groups', 'user_permissions')}),
-        ('Important Dates', {'fields': ('last_login', 'date_joined')}),
-    )
+    def get_fieldsets(self, request, obj=None):
+        """Custom fieldsets - show is_staff editable, is_superuser hidden for superusers."""
+        if request.user.is_superuser:
+            fieldsets = (
+                (None, {'fields': ('email', 'username', 'password')}),
+                ('Personal Info', {'fields': (
+                    'first_name', 'last_name', 'phone', 'date_of_birth',
+                    'gender', 'nationality', 'state_of_origin', 'passport_number', 'passport_expiry',
+                    'address', 'emergency_contact_name', 'emergency_contact_phone'
+                )}),
+                ('Profile', {'fields': ('get_profile_picture_link',)}),
+                ('Permissions', {'fields': ('is_active', 'is_staff', 'can_approve_registrations', 'groups', 'user_permissions')}),
+                ('Important Dates', {'fields': ('last_login', 'date_joined')}),
+            )
+        else:
+            fieldsets = (
+                (None, {'fields': ('email', 'username', 'password')}),
+                ('Personal Info', {'fields': (
+                    'first_name', 'last_name', 'phone', 'date_of_birth',
+                    'gender', 'nationality', 'state_of_origin', 'passport_number', 'passport_expiry',
+                    'address', 'emergency_contact_name', 'emergency_contact_phone'
+                )}),
+                ('Profile', {'fields': ('get_profile_picture_link',)}),
+                ('Permissions', {'fields': ('is_active', 'can_approve_registrations', 'groups', 'user_permissions')}),
+                ('Important Dates', {'fields': ('last_login', 'date_joined')}),
+            )
+        return fieldsets
+
+    def has_add_permission(self, request):
+        """Only superusers can add new users."""
+        return request.user.is_superuser
 
     # Fields to show when adding a new user
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'username', 'phone', 'password1', 'password2', 'is_active', 'is_staff', 'is_superuser', 'can_approve_registrations')
+            'fields': ('email', 'username', 'phone', 'password1', 'password2', 'is_active', 'is_staff', 'can_approve_registrations')
         }),
     )
 
-    # Make fields read-only
-    readonly_fields = (
-        'email', 'first_name', 'last_name', 'profile_picture', 'phone', 'date_of_birth', 'gender',
-        'nationality', 'state_of_origin', 'passport_number', 'passport_expiry',
-        'address', 'emergency_contact_name', 'emergency_contact_phone',
-        'is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions',
-        'last_login', 'date_joined', 'get_profile_picture_link'
-    )
+    # Make fields read-only for superusers (is_superuser is read-only, is_staff is editable)
+    def get_readonly_fields(self, request, obj=None):
+        if request.user.is_superuser:
+            # Superuser can edit is_staff but not is_superuser
+            return (
+                'email', 'first_name', 'last_name', 'profile_picture', 'phone', 'date_of_birth', 'gender',
+                'nationality', 'state_of_origin', 'passport_number', 'passport_expiry',
+                'address', 'emergency_contact_name', 'emergency_contact_phone',
+                'is_superuser', 'groups', 'user_permissions',
+                'last_login', 'date_joined', 'get_profile_picture_link'
+            )
+        else:
+            # Non-superuser cannot edit any permissions
+            return (
+                'email', 'first_name', 'last_name', 'profile_picture', 'phone', 'date_of_birth', 'gender',
+                'nationality', 'state_of_origin', 'passport_number', 'passport_expiry',
+                'address', 'emergency_contact_name', 'emergency_contact_phone',
+                'is_active', 'is_staff', 'is_superuser', 'can_approve_registrations',
+                'groups', 'user_permissions',
+                'last_login', 'date_joined', 'get_profile_picture_link'
+            )
 
     # Columns displayed in the user list
     list_display = (

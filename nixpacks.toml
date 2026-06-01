@@ -3,3 +3,6 @@ nixPkgs = ["python3", "python3Packages.pip"]
 
 [phases.build]
 cmd = "pip install --break-system-packages -r requirements.txt"
+
+[start]
+cmd = "gunicorn myproject.wsgi:application --bind 0.0.0.0:8000"

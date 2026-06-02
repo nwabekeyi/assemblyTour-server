@@ -5,4 +5,4 @@ nixPkgs = ["python3", "python3Packages.pip"]
 cmd = "pip install --break-system-packages -r requirements.txt && python registration_step_seed.py && python create_super_admin.py"
 
 [start]
-cmd = "gunicorn config.wsgi:application --bind 0.0.0.0:8000"
+cmd = "gunicorn config.wsgi:application --bind 0.0.0.0:3000"

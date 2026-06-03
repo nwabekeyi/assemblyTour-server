@@ -31,5 +31,8 @@ python user_seed.py || true
 echo "📁 Collecting static files..."
 python manage.py collectstatic --noinput || true
 
+echo "🕛 Starting database backup scheduler..."
+python manage.py run_backup_scheduler &
+
 echo "✅ All seeds completed. Starting gunicorn..."
 exec gunicorn config.wsgi:application --bind 0.0.0.0:$PORT

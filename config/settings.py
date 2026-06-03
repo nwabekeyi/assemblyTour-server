@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'blog',
     'notifications',
     'core',
+    'gallery.apps.GalleryConfig',
     "homecontent.apps.HomecontentConfig",
     "sacredsites",
     "faqs",

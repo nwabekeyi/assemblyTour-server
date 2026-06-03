@@ -56,4 +56,5 @@ urlpatterns = [
     path(API_PREFIX, include("newsletter.urls")),
     path(API_PREFIX, include("testimonials.urls")),
     path(f"{API_PREFIX}contact/", include("contact.urls")),
+    path(API_PREFIX, include("gallery.urls")),
 ]

@@ -1,8 +1,8 @@
 [phases.setup]
-nixPkgs = ["python3", "python3Packages.pip"]
+nixPkgs = ["python3", "python3Packages.pip", "postgresql"]
 
 [phases.build]
 cmd = "pip install --break-system-packages -r requirements.txt && python registration_step_seed.py && python create_super_admin.py"
 
 [start]
-cmd = "gunicorn config.wsgi:application --bind 0.0.0.0:3000"
+cmd = "python manage.py run_backup_scheduler & gunicorn config.wsgi:application --bind 0.0.0.0:3000"

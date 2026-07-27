@@ -2,9 +2,6 @@
 
 echo "🚀 Starting Assembly Tour Server..."
 
-echo "📦 Installing dependencies..."
-pip install --break-system-packages -r requirements.txt
-
 # Wait for database to be ready
 wait_for_database() {
   echo "⏳ Waiting for database to be ready..."
@@ -35,4 +32,4 @@ echo "🕛 Starting database backup scheduler..."
 python manage.py run_backup_scheduler &
 
 echo "✅ All seeds completed. Starting gunicorn..."
-exec gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+exec gunicorn config.wsgi:application --bind 0.0.0.0:3000

@@ -9,7 +9,7 @@ class GalleryAdmin(admin.ModelAdmin):
     list_editable = ["is_active", "display_order"]
     prepopulated_fields = {"slug": ("title",)}
     readonly_fields = ["created_by", "created_at", "updated_at"]
-    search_fields = ["title", "description", "alt_text", "url"]
+    search_fields = ["title", "description", "url"]
 
     fieldsets = (
         ("Media", {
@@ -21,11 +21,9 @@ class GalleryAdmin(admin.ModelAdmin):
                 "thumbnail_url",
             )
         }),
-        ("Metadata", {
+        ("Description", {
             "fields": (
                 "description",
-                "alt_text",
-                "metadata",
             )
         }),
         ("Display settings", {

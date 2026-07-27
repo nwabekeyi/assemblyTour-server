@@ -13,8 +13,6 @@ class GallerySerializer(serializers.ModelSerializer):
             "url",
             "thumbnail_url",
             "description",
-            "alt_text",
-            "metadata",
             "display_order",
             "created_at",
             "updated_at",

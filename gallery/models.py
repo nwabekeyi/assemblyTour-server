@@ -7,6 +7,7 @@ class Gallery(models.Model):
     class MediaType(models.TextChoices):
         IMAGE = "image", "Image"
         VIDEO = "video", "Video"
+        YOUTUBE = "youtube", "YouTube"
 
     title = models.CharField(max_length=255)
     slug = models.SlugField(max_length=280, unique=True, blank=True)
@@ -14,8 +15,6 @@ class Gallery(models.Model):
     url = models.URLField(max_length=1000)
     thumbnail_url = models.URLField(max_length=1000, blank=True)
     description = models.TextField(blank=True)
-    alt_text = models.CharField(max_length=255, blank=True)
-    metadata = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=True)
     display_order = models.PositiveIntegerField(default=0)
     created_by = models.ForeignKey(

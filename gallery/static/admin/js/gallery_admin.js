@@ -13,11 +13,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (mediaType === 'image') {
             mediaRow.style.display = '';
-            thumbnailRow.style.display = '';
+            thumbnailRow.style.display = 'none';
             urlRow.style.display = 'none';
             urlInput.disabled = true;
             urlInput.value = '';
-        } else {
+        } else if (mediaType === 'video') {
+            mediaRow.style.display = 'none';
+            thumbnailRow.style.display = '';
+            urlRow.style.display = '';
+            urlInput.disabled = false;
+            mediaInput.value = '';
+        } else if (mediaType === 'youtube') {
             mediaRow.style.display = 'none';
             thumbnailRow.style.display = 'none';
             urlRow.style.display = '';

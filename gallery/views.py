@@ -2,6 +2,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+import re
 
 from core.utils.api_response import api_response
 from core.utils.pagination import StandardResultsSetPagination
@@ -12,6 +13,26 @@ from .serializers import GallerySerializer
 
 
 cloudinary_service = CloudinaryService()
+
+
+def extract_youtube_id(url):
+    if not url:
+        return None
+    patterns = [
+        r'(?:v=|\/)([^&\?\/]+)',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match[1]
+    return None
+
+
+def get_youtube_thumbnail_url(url):
+    video_id = extract_youtube_id(url)
+    if video_id:
+        return f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
+    return None
 
 
 class GalleryListView(generics.ListAPIView):
@@ -81,6 +102,9 @@ class GalleryCreateView(generics.CreateAPIView):
                     message="YouTube URL is required for YouTube media type",
                     status_code=status.HTTP_400_BAD_REQUEST,
                 )
+            youtube_thumbnail = get_youtube_thumbnail_url(data.get("url"))
+            if youtube_thumbnail:
+                data["thumbnail"] = youtube_thumbnail
         elif media_type == "video":
             if not media_file and not data.get("url"):
                 return api_response(
@@ -173,6 +197,9 @@ class GalleryUpdateView(generics.UpdateAPIView):
                     message="YouTube URL is required for YouTube media type",
                     status_code=status.HTTP_400_BAD_REQUEST,
                 )
+            youtube_thumbnail = get_youtube_thumbnail_url(data.get("url"))
+            if youtube_thumbnail:
+                data["thumbnail"] = youtube_thumbnail
         elif media_type == "video":
             if thumbnail_file:
                 try:

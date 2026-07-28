@@ -24,3 +24,5 @@ frontend/build/
 
 client_secret_1089861595391-fu2n329acr68cm2j59c76sd6rjl09l7r.apps.googleusercontent.com.json
 os
+
+backup-to-dropbox-local.py

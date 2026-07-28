@@ -36,7 +36,7 @@ if User.objects.filter(**lookup).exists():
     sys.exit(0)
 
 # Hardcode a phone number for superuser
-phone = os.environ.get("DJANGO_SUPERUSER_PHONE", "+2348000000000")
+phone = os.environ.get("DJANGO_SUPERUSER_PHONE", "+2348000000001")
 
 # Build required fields dynamically
 extra_fields = {

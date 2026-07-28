@@ -9,7 +9,7 @@ class GalleryAdmin(admin.ModelAdmin):
     list_editable = ["is_active", "display_order"]
     prepopulated_fields = {"slug": ("title",)}
     readonly_fields = ["created_by", "created_at", "updated_at"]
-    search_fields = ["title", "description", "url"]
+    search_fields = ["title", "description"]
 
     fieldsets = (
         ("Media", {
@@ -18,7 +18,8 @@ class GalleryAdmin(admin.ModelAdmin):
                 "slug",
                 "media_type",
                 "url",
-                "thumbnail_url",
+                "thumbnail",
+                "media",
             )
         }),
         ("Description", {
@@ -40,6 +41,9 @@ class GalleryAdmin(admin.ModelAdmin):
             )
         }),
     )
+
+    class Media:
+        js = ("admin/js/gallery_admin.js",)
 
     def save_model(self, request, obj, form, change):
         if not obj.created_by:

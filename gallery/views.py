@@ -19,7 +19,7 @@ def extract_youtube_id(url):
     if not url:
         return None
     patterns = [
-        r'(?:v=|\/)([^&\?\/]+)',
+        r'(?:v=|youtu\.be\/)([^&?/]+)',
     ]
     for pattern in patterns:
         match = re.search(pattern, url)
